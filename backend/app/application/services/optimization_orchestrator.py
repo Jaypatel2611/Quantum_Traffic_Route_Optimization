@@ -15,9 +15,18 @@ class OptimizationOrchestrator:
         self.executor = executor or ProcessPoolExecutor(max_workers=2)
         self.job_results: dict[str, dict] = {}
         self.convergence_cache: dict[str, list] = {}
-        self._manager = Manager()
+        # Manager() spawns a real OS subprocess -- deferred until actually
+        # needed, not created here. main.py builds an OptimizationOrchestrator
+        # at import time; if this ran eagerly, merely importing app.main
+        # (including every ProcessPoolExecutor child re-importing the entry
+        # script under Windows' spawn method) would itself spawn a subprocess,
+        # tripping Python's recursive-bootstrap guard. Found live via Task 5's
+        # verification script, not a test.
+        self._manager = None
 
     async def run_comparison(self, job_id: str, payload: dict, seed: int, time_budget_s: float) -> None:
+        if self._manager is None:
+            self._manager = Manager()
         loop = asyncio.get_running_loop()
         progress_list = self._manager.list()
         self.convergence_cache[job_id] = progress_list

@@ -85,3 +85,33 @@ Capacity constraint correctly forced a 2-vehicle split (130 total demand > 100 s
 **How to verify:** `cd backend && .venv/Scripts/python scripts/verify_or_tools_baseline.py`, or `pytest tests/` for the full 29-test suite.
 
 **Open questions/flags:** none outstanding.
+
+## Phase 3 — QPSO Algorithmic Engine (highest-risk phase — user flagged, extra care taken)
+
+**What was built:** `qpso_solver.py`, PRD Section 9's QPSO built up from six independently-tested pieces: Rank-Order Value mapping (Task 1), giant-tour-to-per-vehicle-route splitting + PRD Section 12's dynamic capacity penalty (Task 2), multi-objective fitness with Min-Max normalization (Task 3, `FitnessScore` value object), the core iteration loop — local attractor, mean-best position, Monte Carlo position update with a 50/50 sign draw, adaptive α schedule, seeded RNG, wall-clock time budget (Task 4), the Section 15 stagnation countermeasure (Task 5), and a head-to-head verification script against Phase 2's OR-Tools baseline under identical seed/time-budget (Task 6).
+
+**Flagged, user-approved design decision (a genuine spec gap, not guessed silently):** PRD Section 9 fixes the particle to `X_i ∈ R^N` (customer count only) but never states how one permutation becomes multiple vehicle routes. Confirmed with the user: fixed, equal-ish contiguous chunks in tour order, so an over-capacity chunk stays reachable and penalizable (Section 12) rather than auto-repaired away.
+
+**Bug caught and fixed (via the Task 6 verification script, not a test — exactly what that step is for):** the first implementation recomputed the Min-Max normalization range fresh every iteration. Under Min-Max normalization, whichever particle is currently smallest *always* normalizes to exactly 0 (it *is* that population's minimum, by definition) — so Gbest's reported fitness was permanently `0.0` across all 500 iterations, a completely flat, uninformative convergence signal. Task 4's own "Gbest never increases" test didn't catch it, because a constant `0.0` trivially satisfies "never increases." Fixed by tracking a running, expanding (never-shrinking) min/max across the whole run instead of resetting it every iteration, per PRD Section 11's "tracked per-run" wording.
+
+**Clarified, not a second bug (verified by deliberately reproducing it, not assumed):** even after the fix, the real Indiranagar 5-node case *still* shows `fitness: 0.0000` and QPSO landing on the exact same route split as OR-Tools. This is mathematically correct, not degenerate — Min-Max normalization structurally floors whichever particle is simultaneously best on both objectives to exactly 0, and for a tiny 5-customer/2-vehicle search space (only a handful of distinct reachable route-splits), it's expected that both solvers find the same optimum immediately. Confirmed the fix generalizes correctly by testing a bigger (12-customer), *uncorrelated*-objective synthetic instance (independent random distance and time matrices, not one a fixed multiple of the other): convergence history there showed genuine, non-degenerate improvement (`0.3507 → 0.1326 → ... → 0.0651` across 200 iterations, 7 distinct values) — added as a permanent regression test (`test_convergence_is_genuine_not_degenerate_on_an_uncorrelated_instance`) so a future normalization regression can't hide behind "well it's just a small instance" again.
+
+**Real result on the Indiranagar 5-node case, same seed/time-budget as OR-Tools (5s):**
+```
+=== OR-Tools baseline ===
+  v0: depot -> n1 -> n3 -> depot  (dist 1325.5 m, time 129.2 s)
+  v1: depot -> n2 -> n4 -> depot  (dist 818.2 m, time 92.6 s)
+  total: 2143.6 m, 221.8 s
+
+=== QPSO ===
+  v0: depot -> n2 -> n4 -> depot
+  v1: depot -> n1 -> n3 -> depot
+  total: 2143.6 m, 221.8 s, fitness: 0.0000
+
+OR-Tools: 221.8 s | QPSO: 221.8 s | delta: +0.0% | winner: QPSO (tie)
+```
+Both solvers agree exactly (route split identical, vehicle labels swapped) — explainable per the paragraph above, not suspicious. **Meaningful QPSO-vs-OR-Tools differentiation is expected at the 50–100 node scale** (PRD's own empirical success metrics: ≥65% win rate, <1% optimality gap), which is Phase 7's validation step, not this one — this phase's job was to prove the algorithm is mathematically correct and produces genuine, reproducible convergence, which the regression test above now locks in independent of instance size.
+
+**How to verify:** `pytest tests/` (43 tests total, including a Hypothesis property test and the new convergence-genuineness regression test), or `cd backend && .venv/Scripts/python scripts/verify_qpso_vs_ortools.py` for the head-to-head comparison.
+
+**Open questions/flags:** none outstanding.

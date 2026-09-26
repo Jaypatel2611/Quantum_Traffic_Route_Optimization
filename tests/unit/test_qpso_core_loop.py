@@ -60,3 +60,31 @@ def test_best_route_visits_every_customer_exactly_once():
     )
     visited = sorted(c for route in routes for c in route)
     assert visited == [0, 1, 2]
+
+
+def test_convergence_is_genuine_not_degenerate_on_an_uncorrelated_instance():
+    """Regression test for a real bug found via manual verification (not this
+    suite): with distance and time perfectly proportional (or a search space
+    small enough that the optimum is found immediately), the winning particle
+    floors both normalized components to exactly 0 in iteration 0 and stays
+    there forever -- which looks identical to a broken fitness signal. This
+    instance uses independent, uncorrelated distance/time matrices on a
+    bigger customer count, where genuine iterative improvement is actually
+    observable if the normalization/convergence machinery works."""
+    rng = np.random.default_rng(7)
+    n = 12
+    size = n + 1
+    coords = rng.uniform(0, 1000, size=(size, 2))
+    distance_matrix = np.sqrt(((coords[:, None, :] - coords[None, :, :]) ** 2).sum(-1))
+    time_matrix = rng.uniform(5, 50, size=(size, size))
+    time_matrix = (time_matrix + time_matrix.T) / 2
+    np.fill_diagonal(time_matrix, 0)
+    demands = list(rng.uniform(5, 20, size=n))
+
+    _, _, meta = run_qpso(
+        distance_matrix, time_matrix, demands, vehicle_capacity=80.0, num_vehicles=3,
+        depot_index=0, num_particles=20, max_iterations=200, time_budget_s=10.0, seed=42,
+    )
+    history = meta["convergence_history"]
+    assert len(set(history)) > 1, "convergence history is flat -- normalization/fitness signal is degenerate"
+    assert history[-1] < history[0]

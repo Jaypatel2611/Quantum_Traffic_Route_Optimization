@@ -131,6 +131,14 @@ def run_qpso(
     stagnation_counter = 0
     start = time.monotonic()
     stopped_reason = "max_iterations"
+    # ponytail: running (expanding, never-shrinking) min/max across the whole
+    # run -- PRD Section 11 says normalization is "tracked per-run", and a
+    # per-ITERATION-only range makes every iteration's own best particle
+    # trivially normalize to 0 (it *is* that iteration's min by definition),
+    # which flattens the whole convergence signal to zero. Bug found via the
+    # head-to-head verification script, not a test -- see EXPLAINABILITY.md.
+    running_dist_range = None
+    running_time_range = None
 
     iteration = 0
     for iteration in range(max_iterations):
@@ -149,14 +157,18 @@ def run_qpso(
             t = sum(_route_distance_and_time(r, distance_matrix, time_matrix, depot_index)[1] for r in routes)
             all_distances.append(d)
             all_times.append(t)
-        dist_range = (min(all_distances), max(all_distances))
-        time_range = (min(all_times), max(all_times))
+        if running_dist_range is None:
+            running_dist_range = (min(all_distances), max(all_distances))
+            running_time_range = (min(all_times), max(all_times))
+        else:
+            running_dist_range = (min(running_dist_range[0], *all_distances), max(running_dist_range[1], *all_distances))
+            running_time_range = (min(running_time_range[0], *all_times), max(running_time_range[1], *all_times))
 
         fitness_values = [
             evaluate_fitness(
                 all_routes[i], distance_matrix, time_matrix, demands, vehicle_capacity,
                 lam=lam, depot_index=depot_index, w_distance=w_distance, w_time=w_time,
-                population_distance_range=dist_range, population_time_range=time_range,
+                population_distance_range=running_dist_range, population_time_range=running_time_range,
             )
             for i in range(num_particles)
         ]

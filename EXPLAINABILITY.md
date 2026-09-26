@@ -145,3 +145,23 @@ Same explanation as Phase 3's tie: both solvers found the identical route split 
 **How to verify:** `pytest tests/` (53 tests total), or `cd backend && .venv/Scripts/python scripts/verify_emissions_delta.py`.
 
 **Open questions/flags:** the European-fleet-calibration caveat needs to reach Phase 6/7's assumptions modal UI and the eventual SIH pitch deck (per the user's explicit instruction) — flagged here so it isn't dropped when those phases are built.
+
+## Phase 5 — Async Execution + SSE Streaming
+
+**What was built:**
+- `SolverPort` protocol + `run_ortools_job`/`run_qpso_job` adapters (uniform `{"routes": list[Route], "meta": dict}` shape over both solvers). `run_qpso` gained one additive, backward-compatible `progress_list` parameter.
+- `OptimizationOrchestrator` (`application/services`) — owns the shared seed/time-budget, runs both solvers concurrently via `asyncio.get_running_loop().run_in_executor(ProcessPoolExecutor, ...)`, with genuine cross-process live convergence streaming through a `multiprocessing.Manager().list()` proxy. Exceptions from either solver are caught at the `asyncio.gather` boundary and reported as an explicit error status.
+- `convergence_event_stream` (`presentation/sse`) — SSE generator with full-history replay from index 0 on reconnect, terminating on both `done` and `error` (never an infinite spinner).
+- Minimal, explicitly temporary HTTP wiring directly in `main.py`: `POST /jobs` + `GET /jobs/{id}/stream` — no Pydantic validation yet (Phase 7's job); not `optimize_router.py`/`scenario_router.py` (still Phase 6/7 stubs).
+
+**Real bug caught live (via Task 5's verification script, not a test):** `OptimizationOrchestrator.__init__` eagerly spawned a real `Manager()` subprocess, and `main.py` constructs the orchestrator at **module import time**. Every process importing `app.main` — including every `ProcessPoolExecutor` child re-importing the entry script under Windows' `spawn` start method — retriggered that subprocess spawn, tripping Python's recursive-bootstrap guard (`RuntimeError: An attempt has been made to start a new process before the current process has finished its bootstrapping phase`). This didn't surface in any unit/integration test because pytest's own invocation already sits behind a proper `__main__` guard; it only appeared when running the app as a real standalone script, exactly the scenario Task 5 exists to check. Fixed by deferring `Manager()` creation to first `run_comparison` call. Re-verified live after the fix: no crash, real SSE events streamed.
+
+**Result verified honestly, not spun as a perfect match to the plan's expectation:** the plan expected progress events "spread across the ~8s run"; the actual run showed nearly all progress events landing within the first ~1 second, then a 7-second gap, then `complete`. Diagnosis: QPSO (30 particles, 4 customers) finishes its full 500-iteration budget in under a second for this tiny instance, while OR-Tools deliberately consumes its entire 8s `time_limit` (`GUIDED_LOCAL_SEARCH` keeps searching for the full budget even after finding the optimum — standard OR-Tools time-limit behavior). `asyncio.gather` only resolves once both finish. The 7-second gap between the last progress event and `complete` is itself the proof this is genuinely live, not buffered-to-the-end — a faked/non-live implementation would show everything, including `complete`, in one clump.
+
+**PRD Section 14's named integration test** (`/health` stays sub-100ms responsive during a concurrent solver run) passes for real — verified via `TestClient`'s shared event loop, not a trivial pass.
+
+**Flagged deviations, all stated above, not silent:** (1) orchestrator payload is a full CVRP problem bundle, not PRD Section 7's single-`matrix` illustrative sketch; (2) Task 4's HTTP endpoints are explicitly temporary; (3) "live convergence chart" interpreted as the raw SSE data feed (chart UI is Phase 6's job).
+
+**How to verify:** `pytest tests/` (65 tests total — note: the orchestrator/endpoint tests spawn real OS subprocesses and take longer than earlier phases' suites, ~45-50s), or `cd backend && .venv/Scripts/python scripts/verify_sse_live_stream.py` for the live end-to-end demonstration.
+
+**Open questions/flags:** none outstanding.

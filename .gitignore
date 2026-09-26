@@ -3,4 +3,5 @@ __pycache__/
 *.pyc
 node_modules/
 dist/
-cache/*.graphml
+.claude/
+backend/cache/

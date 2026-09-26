@@ -90,3 +90,15 @@ def solve_cvrp(
         "local_search_metaheuristic": "GUIDED_LOCAL_SEARCH",
     }
     return routes, meta
+
+
+def run_ortools_job(payload: dict, seed: int, time_budget_s: float) -> dict:
+    """SolverPort-shaped adapter over solve_cvrp. `seed` is accepted for a
+    uniform call signature with run_qpso_job; unused here because
+    RoutingSearchParameters has no random_seed field (see SEED_CONFIGURABLE)."""
+    routes, meta = solve_cvrp(
+        payload["time_matrix"], payload["distance_matrix"], payload["node_ids"], payload["demands"],
+        vehicle_capacity=payload["vehicle_capacity"], num_vehicles=payload["num_vehicles"],
+        depot_index=payload.get("depot_index", 0), time_limit_s=time_budget_s,
+    )
+    return {"routes": routes, "meta": meta}

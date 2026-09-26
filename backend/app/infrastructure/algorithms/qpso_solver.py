@@ -2,6 +2,7 @@ import time
 
 import numpy as np
 
+from app.domain.entities.route import Route
 from app.domain.value_objects.fitness_score import FitnessScore
 
 
@@ -114,6 +115,7 @@ def run_qpso(
     lambda_max: float = 100.0,
     w_distance: float = 0.5,
     w_time: float = 0.5,
+    progress_list=None,
 ):
     """PRD Section 9's QPSO: ROV mapping, local attractor point, mean-best
     position, Monte Carlo position update with a 50/50 sign draw, adaptive
@@ -185,6 +187,8 @@ def run_qpso(
             gbest_position = positions[best_idx].copy()
         stagnation_counter = 0 if improved else stagnation_counter + 1
         convergence_history.append(gbest_fitness.total)
+        if progress_list is not None:
+            progress_list.append(gbest_fitness.total)
 
         if stagnation_counter >= 50:
             positions, _ = reinitialize_stagnant_particles(positions, pbest_fitness, rng, fraction=0.2)
@@ -205,3 +209,25 @@ def run_qpso(
         "stopped_reason": stopped_reason,
     }
     return best_routes, gbest_fitness, meta
+
+
+def run_qpso_job(payload: dict, seed: int, time_budget_s: float, progress_list=None) -> dict:
+    """SolverPort-shaped adapter over run_qpso. Converts QPSO's raw
+    customer-index routes into Route objects (the shape run_ortools_job
+    already returns) so the orchestrator can treat both uniformly."""
+    node_ids = payload["node_ids"]
+    depot_index = payload.get("depot_index", 0)
+    routes, fitness, meta = run_qpso(
+        payload["distance_matrix"], payload["time_matrix"], payload["demands"][1:],
+        vehicle_capacity=payload["vehicle_capacity"], num_vehicles=payload["num_vehicles"],
+        depot_index=depot_index, num_particles=payload.get("num_particles", 30),
+        max_iterations=payload.get("max_iterations", 500), time_budget_s=time_budget_s, seed=seed,
+        progress_list=progress_list,
+    )
+    route_objs = []
+    for i, route in enumerate(routes):
+        d, t = _route_distance_and_time(route, payload["distance_matrix"], payload["time_matrix"], depot_index)
+        stops = ["depot"] + [node_ids[c + 1] for c in route] + ["depot"]
+        route_objs.append(Route(vehicle_id=f"v{i}", node_sequence=stops, total_distance_m=d, total_time_s=t))
+    meta["fitness_total"] = fitness.total
+    return {"routes": route_objs, "meta": meta}

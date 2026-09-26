@@ -1,1 +1,7 @@
-"""Stub — implemented in Phase 2/3. No logic yet (Phase 0 scaffolding only)."""
+from typing import Protocol
+
+
+class SolverPort(Protocol):
+    def __call__(self, payload: dict, seed: int, time_budget_s: float) -> dict:
+        """Returns {"routes": list[Route], "meta": dict}."""
+        ...

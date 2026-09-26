@@ -1,1 +1,8 @@
-"""Stub — implemented in Phase 4. No logic yet (Phase 0 scaffolding only)."""
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class CO2EmissionProfile:
+    total_kg: float
+    average_speed_kmh: float
+    fuel_type: str = "diesel"

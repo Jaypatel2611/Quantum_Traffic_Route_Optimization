@@ -1,3 +1,5 @@
+from app.domain.value_objects.co2_emission_profile import CO2EmissionProfile
+
 # Source: EMEP/EEA Air Pollutant Emission Inventory Guidebook-derived COPERT
 # formula for diesel passenger cars < 2.5t, valid speed range 10-130 km/h.
 # Verified via three independent web searches converging on the same
@@ -29,3 +31,23 @@ def emission_factor_g_per_km(speed_kmh: float) -> float:
     was published for is not defensible."""
     v = min(max(speed_kmh, _MIN_VALID_SPEED_KMH), _MAX_VALID_SPEED_KMH)
     return _A + _B * v + _C * v**2
+
+
+def route_emissions(route) -> CO2EmissionProfile:
+    """ponytail: route-average-speed approximation (not per-edge EF(v)
+    integration) -- Phase 1's matrices are aggregated point-to-point sums,
+    not retained edge paths. Upgrade path: per-edge integration if
+    distance_matrix_builder starts tracking the path."""
+    distance_km = route.total_distance_m / 1000
+    average_speed_kmh = distance_km / (route.total_time_s / 3600)
+    total_kg = emission_factor_g_per_km(average_speed_kmh) * distance_km / 1000
+    return CO2EmissionProfile(total_kg=total_kg, average_speed_kmh=average_speed_kmh)
+
+
+def total_emissions_kg(routes) -> float:
+    return sum(route_emissions(r).total_kg for r in routes)
+
+
+def co2_reduction_percent(baseline_kg: float, optimized_kg: float) -> float:
+    """Positive = optimized route emits less than baseline (an improvement)."""
+    return (baseline_kg - optimized_kg) / baseline_kg * 100

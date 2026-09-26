@@ -22,3 +22,15 @@ Updated after every phase and every noticeable change.
 **How to verify:** `docker compose up --build`, then `curl http://localhost:8000/health` and load `http://localhost:4173` in a browser — expect "Backend status: ok".
 
 **Open questions/flags:** none.
+
+## Phase 1 — Geospatial Pipeline (in progress)
+
+**Task 1 — domain types:** `GeographicCoordinates` (immutable, lat/lon-bounds-validated), `Node` (id/coordinates/demand, demand ≥ 0), and the three domain exceptions (`GraphDisconnectedError`, `CapacityExceededError`, `TimeWindowViolation`) implemented, 8 unit tests.
+
+**Task 2 — offline OSMnx fetch-and-cache pipeline (`osmnx_client.py`):** `fetch_and_cache_graph` (bounding-box size guard → fetch → largest-strongly-connected-component truncation → edge speed/travel-time imputation → `.graphml` save) and `load_cached_graph` (zero-network load). 2 mocked unit tests.
+
+**Flagged deviations, not silently substituted:**
+1. PRD Section 8's example place string, `"Koramangala, Bengaluru, India"`, does not currently resolve to a polygon in Nominatim (verified directly — `ox.geocode_to_gdf` raises `TypeError: Nominatim did not geocode query ... to a geometry of type (Multi)Polygon` for three phrasings of the name). This is external OSM/Nominatim data, not a bug in this pipeline. Flagged to the user, who approved swapping to `"Indiranagar, Bengaluru, India"` (confirmed to resolve to a real polygon) as the Phase 1 test city — same mechanism, same city (Bengaluru), only the neighborhood name changed.
+2. PRD Section 8's code snippet calls `ox.add_edge_speeds(G)` with no arguments. Against the installed `osmnx==2.1.1`, this raises `ValueError: This graph's edges have no preexisting 'maxspeed' attribute values so you must pass hwy_speeds or fallback arguments` — osmnx's API tightened since the PRD was written; it no longer silently applies a builtin default-speed table when a graph has zero `maxspeed` tags. Fixed by passing `hwy_speeds`/`fallback` explicitly, using the same residential≈30 km/h / primary-arterial≈60 km/h values PRD Section 10 point 4 itself describes (`HWY_SPEEDS_KMH`/`FALLBACK_SPEED_KMH` in `osmnx_client.py`) — implements the PRD's stated intent through the current library's actual required call shape.
+
+**Real cache generated:** `cache/indiranagar_bengaluru.graphml` — 316 nodes, 829 edges, fetched once from live Overpass/Nominatim and committed to the repo (PRD Section 8: the running app only ever loads this file, never fetches live at demo time). Note: Phase 0's `.gitignore` originally excluded `cache/*.graphml` (added speculatively, before this phase clarified the cache file itself is a required, committed demo asset, not a build artifact) — corrected before committing.

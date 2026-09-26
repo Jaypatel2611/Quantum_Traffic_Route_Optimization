@@ -278,20 +278,29 @@ Expected: PASS (2 tests)
 
 - [ ] **Step 6: Run the real one-time fetch (actual network call, actual cache file)**
 
+Flagged deviation from the PRD's literal example, not silently substituted: PRD Section 8's
+sample place string `"Koramangala, Bengaluru, India"` does not currently resolve to a polygon
+in Nominatim (verified — `ox.geocode_to_gdf` raises `TypeError: Nominatim did not geocode
+query ... to a geometry of type (Multi)Polygon` for three phrasings), so it cannot be fetched
+regardless of code correctness. Confirmed `"Indiranagar, Bengaluru, India"` resolves to a real
+polygon and is used instead — still "one test Indian city" per the user's Phase 1 instruction,
+same PRD Section 8 mechanism, only the specific neighborhood name changed. User approved this
+swap explicitly.
+
 ```bash
 cd backend
 .venv/Scripts/python -c "
 from pathlib import Path
 from app.infrastructure.geospatial.osmnx_client import fetch_and_cache_graph
-fetch_and_cache_graph('Koramangala, Bengaluru, India', Path('../cache/koramangala_bengaluru.graphml'))
+fetch_and_cache_graph('Indiranagar, Bengaluru, India', Path('../cache/indiranagar_bengaluru.graphml'))
 "
 ```
-Expected: `cache/koramangala_bengaluru.graphml` exists and is non-empty. Report the node/edge count.
+Expected: `cache/indiranagar_bengaluru.graphml` exists and is non-empty. Report the node/edge count.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add backend/app/infrastructure/geospatial/osmnx_client.py backend/requirements.txt tests/unit/test_osmnx_client.py cache/koramangala_bengaluru.graphml
+git add backend/app/infrastructure/geospatial/osmnx_client.py backend/requirements.txt tests/unit/test_osmnx_client.py cache/indiranagar_bengaluru.graphml
 git commit -m "feat: implement offline OSMnx fetch-and-cache pipeline
 
 test: cover the bounding-box size guard and the fetch/truncate/cache call chain"
@@ -611,15 +620,15 @@ from app.infrastructure.geospatial.osmnx_client import load_cached_graph
 from app.infrastructure.geospatial.distance_matrix_builder import build_distance_time_matrix
 from app.infrastructure.geospatial.stochastic_delay_injector import inject_stochastic_delay
 
-CACHE_PATH = Path(__file__).resolve().parents[2] / "cache" / "koramangala_bengaluru.graphml"
+CACHE_PATH = Path(__file__).resolve().parents[2] / "cache" / "indiranagar_bengaluru.graphml"
 
-# 5 hand-picked points scattered across Koramangala's road network.
+# 5 hand-picked points scattered across Indiranagar's road network.
 TEST_NODES = [
-    Node(id="depot", coordinates=GeographicCoordinates(lat=12.9352, lon=77.6146)),
-    Node(id="n1", coordinates=GeographicCoordinates(lat=12.9370, lon=77.6180)),
-    Node(id="n2", coordinates=GeographicCoordinates(lat=12.9330, lon=77.6120)),
-    Node(id="n3", coordinates=GeographicCoordinates(lat=12.9390, lon=77.6100)),
-    Node(id="n4", coordinates=GeographicCoordinates(lat=12.9310, lon=77.6170)),
+    Node(id="depot", coordinates=GeographicCoordinates(lat=12.9716, lon=77.6412)),
+    Node(id="n1", coordinates=GeographicCoordinates(lat=12.9750, lon=77.6440)),
+    Node(id="n2", coordinates=GeographicCoordinates(lat=12.9690, lon=77.6380)),
+    Node(id="n3", coordinates=GeographicCoordinates(lat=12.9760, lon=77.6390)),
+    Node(id="n4", coordinates=GeographicCoordinates(lat=12.9670, lon=77.6430)),
 ]
 
 if __name__ == "__main__":

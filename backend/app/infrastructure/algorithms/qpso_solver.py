@@ -1,3 +1,5 @@
+import time
+
 import numpy as np
 
 from app.domain.value_objects.fitness_score import FitnessScore
@@ -80,3 +82,96 @@ def evaluate_fitness(
         time_component=w_time * time_norm,
         penalty_component=penalty,
     )
+
+
+def run_qpso(
+    distance_matrix,
+    time_matrix,
+    demands: list[float],
+    vehicle_capacity: float,
+    num_vehicles: int,
+    depot_index: int,
+    num_particles: int,
+    max_iterations: int,
+    time_budget_s: float,
+    seed: int,
+    k: float = 1.75,
+    lambda_min: float = 1.0,
+    lambda_max: float = 100.0,
+    w_distance: float = 0.5,
+    w_time: float = 0.5,
+):
+    """PRD Section 9's QPSO: ROV mapping, local attractor point, mean-best
+    position, Monte Carlo position update with a 50/50 sign draw, adaptive
+    alpha contraction-expansion schedule. One seeded Generator drives every
+    stochastic draw (PRD Section 7) -- never bare numpy.random."""
+    rng = np.random.default_rng(seed)
+    n = len(demands)  # customer count (depot excluded, PRD Section 9's R^N)
+
+    positions = rng.uniform(-1.0, 1.0, size=(num_particles, n))
+    pbest_positions = positions.copy()
+    pbest_fitness = [None] * num_particles
+    gbest_position = None
+    gbest_fitness = None
+    convergence_history: list[float] = []
+    stagnation_counter = 0
+    start = time.monotonic()
+    stopped_reason = "max_iterations"
+
+    iteration = 0
+    for iteration in range(max_iterations):
+        if time.monotonic() - start >= time_budget_s:
+            stopped_reason = "time_budget"
+            break
+
+        alpha = 1.0 - (1.0 - 0.5) * (iteration / max_iterations) ** k
+        lam = lambda_min + (lambda_max - lambda_min) * (iteration / max_iterations) ** k
+
+        all_routes = [split_into_routes(rov_map(p), num_vehicles) for p in positions]
+        all_distances = []
+        all_times = []
+        for routes in all_routes:
+            d = sum(_route_distance_and_time(r, distance_matrix, time_matrix, depot_index)[0] for r in routes)
+            t = sum(_route_distance_and_time(r, distance_matrix, time_matrix, depot_index)[1] for r in routes)
+            all_distances.append(d)
+            all_times.append(t)
+        dist_range = (min(all_distances), max(all_distances))
+        time_range = (min(all_times), max(all_times))
+
+        fitness_values = [
+            evaluate_fitness(
+                all_routes[i], distance_matrix, time_matrix, demands, vehicle_capacity,
+                lam=lam, depot_index=depot_index, w_distance=w_distance, w_time=w_time,
+                population_distance_range=dist_range, population_time_range=time_range,
+            )
+            for i in range(num_particles)
+        ]
+
+        for i, score in enumerate(fitness_values):
+            if pbest_fitness[i] is None or score.total < pbest_fitness[i].total:
+                pbest_fitness[i] = score
+                pbest_positions[i] = positions[i].copy()
+
+        best_idx = min(range(num_particles), key=lambda i: fitness_values[i].total)
+        improved = gbest_fitness is None or fitness_values[best_idx].total < gbest_fitness.total * (1 - 0.0001)
+        if gbest_fitness is None or fitness_values[best_idx].total < gbest_fitness.total:
+            gbest_fitness = fitness_values[best_idx]
+            gbest_position = positions[best_idx].copy()
+        stagnation_counter = 0 if improved else stagnation_counter + 1
+        convergence_history.append(gbest_fitness.total)
+
+        mbest = pbest_positions.mean(axis=0)
+        phi = rng.uniform(0.0, 1.0, size=(num_particles, n))
+        attractor = phi * pbest_positions + (1 - phi) * gbest_position
+        u = rng.uniform(1e-12, 1.0, size=(num_particles, n))  # avoid ln(1/0)
+        sign = np.where(rng.random(size=(num_particles, n)) < 0.5, 1.0, -1.0)
+        positions = attractor + sign * alpha * np.abs(mbest - positions) * np.log(1.0 / u)
+
+    best_routes = split_into_routes(rov_map(gbest_position), num_vehicles)
+    meta = {
+        "seed": seed,
+        "convergence_history": convergence_history,
+        "iterations_run": iteration + 1,
+        "stopped_reason": stopped_reason,
+    }
+    return best_routes, gbest_fitness, meta

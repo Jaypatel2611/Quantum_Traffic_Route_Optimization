@@ -115,3 +115,33 @@ Both solvers agree exactly (route split identical, vehicle labels swapped) — e
 **How to verify:** `pytest tests/` (43 tests total, including a Hypothesis property test and the new convergence-genuineness regression test), or `cd backend && .venv/Scripts/python scripts/verify_qpso_vs_ortools.py` for the head-to-head comparison.
 
 **Open questions/flags:** none outstanding.
+
+## Phase 4 — Ecological Metrics (COPERT)
+
+**What was built:** `copert_model.py` — `emission_factor_g_per_km(speed_kmh)` (CO2 g/km, clamped to a validated speed domain), `route_emissions`/`total_emissions_kg` (per-route and per-solution CO2 in kg, from average speed), `co2_reduction_percent` (the primary reported sustainability metric). `CO2EmissionProfile` domain value object.
+
+**Real, cited source — verified via web search, not recalled from memory:** three independent search queries converged on the same EMEP/EEA Guidebook-derived COPERT formula for diesel passenger cars <2.5t, valid 10–130 km/h: `CO2(v) = 286 − 4.07v + 0.0271v²` g/km. This is a direct quadratic in `v`, not PRD Section 13's illustrative `(a+bv+cv²)/v` rational form — using the real, verifiable published curve was judged more defensible than force-fitting an approximation to match an illustrative snippet.
+
+**Methodology decision, made explicitly with the user (a genuine PRD tension, not silently resolved either way):** PRD Section 13 asks for COPERT's *shape* rescaled by an *IPCC per-liter-fuel* magnitude, specifically because COPERT's published numbers are European-fleet-calibrated. Doing that rescale would need an assumed India-specific fuel-economy figure (L/100km) with no confidently sourced number — a second, less-verifiable guess stacked on the first. **Decision: use COPERT's real formula (shape *and* magnitude) as-is**, with the European-fleet-calibration caveat stated directly in code (`EMISSION_FACTOR_SOURCE`, tested), not just in this doc. ARAI/CPCB India-specific coefficients are flagged as a V2 dependency. Per the user's explicit instruction, this caveat also needs to reach the eventual assumptions modal (Phase 6/7) and any pitch-deck slide — noting that dependency here so it isn't lost.
+
+**Primary reported metric, per user correction:** the **relative % CO2 reduction** between OR-Tools and QPSO routes, not the absolute kg figure — absolute kg is shown only as secondary, clearly-labeled European-proxy context.
+
+**Flagged simplification (stated, not silent):** emissions computed from each route's **average speed** (`distance/time`), not true per-edge `EF(v)` integration — Phase 1's matrices are aggregated point-to-point sums, not retained edge paths. `# ponytail` comment in code names the upgrade path (track edge paths in `distance_matrix_builder` if per-edge fidelity is needed later).
+
+**Bug caught (mine, not the formula's):** my own hand-computed reference values for the Section 14-required 3-speed-band unit test had small arithmetic slips (e.g. `0.0271×16900` ≈ 457.99, I'd written 458.19) — the sourced coefficients and code were correct throughout; only my manual verification arithmetic needed fixing, caught by the test itself failing against the actual (correct) computed output.
+
+**Real result on the Indiranagar 5-node case** (same seed/time-budget as Phase 3):
+```
+Emission factor source: EMEP/EEA Guidebook COPERT formula, diesel passenger car <2.5t,
+European-fleet-calibrated (ARAI/CPCB India-specific coefficients: V2 dependency)
+
+OR-Tools baseline CO2: 0.3794 kg
+QPSO CO2:              0.3794 kg
+
+Relative CO2 reduction (QPSO vs. OR-Tools): +0.00%
+```
+Same explanation as Phase 3's tie: both solvers found the identical route split for this tiny 5-node/2-vehicle instance, so identical emissions are expected, not a bug. Re-ran fresh before committing — output was bit-identical both times. Meaningful CO2 differentiation is expected at the 50–100 node scale (Phase 7), same caveat as Phase 3's time-based comparison.
+
+**How to verify:** `pytest tests/` (53 tests total), or `cd backend && .venv/Scripts/python scripts/verify_emissions_delta.py`.
+
+**Open questions/flags:** the European-fleet-calibration caveat needs to reach Phase 6/7's assumptions modal UI and the eventual SIH pitch deck (per the user's explicit instruction) — flagged here so it isn't dropped when those phases are built.

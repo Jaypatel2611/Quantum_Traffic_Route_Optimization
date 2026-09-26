@@ -56,3 +56,32 @@ Every delayed value ≥ its base-time counterpart; matrix stays asymmetric.
 **How to verify:** `cd backend && .venv/Scripts/python scripts/verify_geospatial_pipeline.py` (no network access required — loads the committed `.graphml` cache only), or `pytest tests/` for the full 21-test suite.
 
 **Open questions/flags:** none outstanding — both flagged deviations above were resolved with the user's explicit sign-off or a stated defensible interpretation.
+
+## Phase 2 — Classical Baseline (OR-Tools)
+
+**What was built:**
+- `Vehicle` (id/capacity/`fuel_type` — scaffolded now per PRD Section 6, unused until Phase 4/V2 heterogeneous fleets) and `Route` (vehicle_id/node_sequence/total_distance_m/total_time_s) domain entities.
+- `or_tools_baseline.py`: `solve_cvrp(...)` — single-depot, homogeneous-fleet CVRP via `ortools.constraint_solver.pywrapcp`, configured exactly per PRD Section 9.2 (`PATH_CHEAPEST_ARC` first-solution strategy, `GUIDED_LOCAL_SEARCH` metaheuristic, hard wall-clock `time_limit`). Optimizes on **time** (the post-stochastic-delay matrix), reports distance post-hoc — stated explicitly since PRD doesn't pin the objective metric down for OR-Tools specifically.
+- End-to-end verification against the real cached Indiranagar graph, same 5-node case as Phase 1 with demands assigned.
+
+**Flagged, verified directly (not assumed from the PRD's prose):** PRD Section 7 says OR-Tools seed-parity "must be verified against the installed OR-Tools version before the fairness claim is presented to judges" — inspected `ortools==9.15.6755`'s `RoutingSearchParameters` full proto field list directly; confirmed no `random_seed` field exists. This is reported as a visible `seed_configurable: False` field in `solve_cvrp`'s return metadata (covered by its own test), not a comment nobody reads — the QPSO/OR-Tools fairness comparison two phases from now is time-budget-matched, not RNG-state-matched, on the OR-Tools side, and that limitation is now logged wherever the metadata is logged.
+
+**Bug caught and fixed (test-design bug, not implementation):** the first capacity-constraint test used `capacity=50` with demands `[30, 40, 25]` — genuinely infeasible by construction (every pairwise combination of two demands exceeds 50, but only 2 vehicles were offered for 3 customers). `solve_cvrp` correctly raised its "no feasible solution" error; the test itself was wrong. Fixed by choosing `capacity=70` (every pairwise combination fits, but no single vehicle can carry all three — still a real, meaningful capacity constraint, just not an impossible one).
+
+**Real result on the Indiranagar 5-node case** (depot demand 0, n1–n4 demands 30/40/25/35, capacity 100, 2 vehicles, 5s time limit, same 8am-peak-delayed time matrix as Phase 1):
+```
+Solver config: {'seed_configurable': False, 'time_limit_s': 5.0, 'first_solution_strategy': 'PATH_CHEAPEST_ARC', 'local_search_metaheuristic': 'GUIDED_LOCAL_SEARCH'}
+
+2 route(s) found:
+  v0: depot -> n1 -> n3 -> depot
+    distance: 1325.5 m, time: 129.2 s
+  v1: depot -> n2 -> n4 -> depot
+    distance: 818.2 m, time: 92.6 s
+
+Total across all routes: 2143.6 m, 221.8 s
+```
+Capacity constraint correctly forced a 2-vehicle split (130 total demand > 100 single-vehicle capacity); every route respects its 100-unit cap (v0: 55, v1: 75).
+
+**How to verify:** `cd backend && .venv/Scripts/python scripts/verify_or_tools_baseline.py`, or `pytest tests/` for the full 29-test suite.
+
+**Open questions/flags:** none outstanding.

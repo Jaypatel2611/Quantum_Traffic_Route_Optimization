@@ -23,7 +23,7 @@ Updated after every phase and every noticeable change.
 
 **Open questions/flags:** none.
 
-## Phase 1 — Geospatial Pipeline (in progress)
+## Phase 1 — Geospatial Pipeline
 
 **Task 1 — domain types:** `GeographicCoordinates` (immutable, lat/lon-bounds-validated), `Node` (id/coordinates/demand, demand ≥ 0), and the three domain exceptions (`GraphDisconnectedError`, `CapacityExceededError`, `TimeWindowViolation`) implemented, 8 unit tests.
 
@@ -34,3 +34,25 @@ Updated after every phase and every noticeable change.
 2. PRD Section 8's code snippet calls `ox.add_edge_speeds(G)` with no arguments. Against the installed `osmnx==2.1.1`, this raises `ValueError: This graph's edges have no preexisting 'maxspeed' attribute values so you must pass hwy_speeds or fallback arguments` — osmnx's API tightened since the PRD was written; it no longer silently applies a builtin default-speed table when a graph has zero `maxspeed` tags. Fixed by passing `hwy_speeds`/`fallback` explicitly, using the same residential≈30 km/h / primary-arterial≈60 km/h values PRD Section 10 point 4 itself describes (`HWY_SPEEDS_KMH`/`FALLBACK_SPEED_KMH` in `osmnx_client.py`) — implements the PRD's stated intent through the current library's actual required call shape.
 
 **Real cache generated:** `cache/indiranagar_bengaluru.graphml` — 316 nodes, 829 edges, fetched once from live Overpass/Nominatim and committed to the repo (PRD Section 8: the running app only ever loads this file, never fetches live at demo time). Note: Phase 0's `.gitignore` originally excluded `cache/*.graphml` (added speculatively, before this phase clarified the cache file itself is a required, committed demo asset, not a build artifact) — corrected before committing.
+
+**Task 3 — node-snapped asymmetric distance/time matrix builder (`distance_matrix_builder.py`):** `build_distance_time_matrix(graph, nodes)` snaps each node to its nearest routable edge (`ox.distance.nearest_edges`, not nearest raw node) and computes all-pairs shortest-path distance (meters) and time (seconds) via `networkx.single_source_dijkstra_path_length`. 4 tests (unit + the "no infinite distance after largest-SCC cleaning" property PRD Section 14 names explicitly).
+
+**Bug caught and fixed:** the first implementation anchored every snapped point on its edge's *destination* node unconditionally. Two points that both bordered the same edge (one nearer its start, one nearer its end) silently collapsed onto the same graph node, zeroing the distance between them — caught by the asymmetry test failing (`time[0,1] == time[1,0] == 0.0` when it should not have been equal at all). Fixed by anchoring on whichever of the edge's two endpoints is actually nearer to the query point. Re-verified against the real Indiranagar graph after the fix (asymmetric, finite, sensible 10–90s magnitudes at neighborhood scale).
+
+**Task 4 — SVRPBench log-normal stochastic delay injection (`stochastic_delay_injector.py`):** `inject_stochastic_delay(time_matrix, rng, hour_of_day)`, using SVRPBench's `mu_base=0, sigma_base=0.3, delta=0.1, epsilon=0.2` with Gaussian peak-hour amplification at 8am/5pm (`sigma=1.5`). All randomness drawn from the caller's seeded `numpy.random.Generator` — never global `numpy.random` state, so the same seed reproduces identical delays (verified as a property test; this is the exact guarantee the QPSO/OR-Tools fairness comparison two phases from now depends on).
+
+**Flagged interpretation:** a raw `lognormal(mean=0, sigma)` draw has median 1.0 but ~50% of draws fall below it, which would mean arriving *faster* than the deterministic free-flow base time — contrary to what "stochastic delay" means. Multipliers are floored at 1.0 (`np.maximum(multipliers, 1.0)`) so delay only ever adds time. Not stated explicitly in PRD Section 10 point 7's prose; this is the defensible reading applied and flagged here rather than guessed silently.
+
+**Task 5 — end-to-end verification (`backend/scripts/verify_geospatial_pipeline.py`):** ties the pipeline together against the real cached Indiranagar graph with 5 hand-picked delivery points. Output (8am peak-hour delayed time matrix, seconds):
+```
+[[  0.   64.8  18.5 113.1  30. ]
+ [ 50.9   0.   62.7  40.2  68.1]
+ [ 62.8 137.6   0.  168.8  24.1]
+ [ 24.2  50.1  36.    0.   54.2]
+ [ 50.   68.1 128.6  94.6   0. ]]
+```
+Every delayed value ≥ its base-time counterpart; matrix stays asymmetric.
+
+**How to verify:** `cd backend && .venv/Scripts/python scripts/verify_geospatial_pipeline.py` (no network access required — loads the committed `.graphml` cache only), or `pytest tests/` for the full 21-test suite.
+
+**Open questions/flags:** none outstanding — both flagged deviations above were resolved with the user's explicit sign-off or a stated defensible interpretation.

@@ -84,6 +84,20 @@ def evaluate_fitness(
     )
 
 
+def reinitialize_stagnant_particles(positions, pbest_fitness, rng, fraction: float = 0.2):
+    """PRD Section 15: if Gbest fails to improve for 50 consecutive iterations,
+    vaporize and randomly re-initialize the worst-performing fraction of the
+    swarm (ranked by personal-best fitness), forcing renewed exploration."""
+    num_particles = len(positions)
+    num_reinit = max(1, int(num_particles * fraction))
+    ranked = sorted(range(num_particles), key=lambda i: pbest_fitness[i].total, reverse=True)
+    reinit_indices = sorted(ranked[:num_reinit])
+    new_positions = positions.copy()
+    for i in reinit_indices:
+        new_positions[i] = rng.uniform(-1.0, 1.0, size=positions.shape[1])
+    return new_positions, reinit_indices
+
+
 def run_qpso(
     distance_matrix,
     time_matrix,
@@ -159,6 +173,10 @@ def run_qpso(
             gbest_position = positions[best_idx].copy()
         stagnation_counter = 0 if improved else stagnation_counter + 1
         convergence_history.append(gbest_fitness.total)
+
+        if stagnation_counter >= 50:
+            positions, _ = reinitialize_stagnant_particles(positions, pbest_fitness, rng, fraction=0.2)
+            stagnation_counter = 0
 
         mbest = pbest_positions.mean(axis=0)
         phi = rng.uniform(0.0, 1.0, size=(num_particles, n))

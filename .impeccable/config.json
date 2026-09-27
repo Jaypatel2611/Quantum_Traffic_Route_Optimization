@@ -1,3 +1,18 @@
 {
-  "buildPath": "code"
+  "buildPath": "code",
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "frontend/src/screens/GreenImpactScreen.tsx"
+        ],
+        "createdAt": "2026-09-27T07:14:31.702Z",
+        "reason": "Design Brief P2: colored left border is the app's mandated algorithm/eco color-encoding mechanism, not a generic card accent — confirmed by finish-reviewer's explicit 'keep' verdict on this exact pattern"
+      }
+    ]
+  }
 }

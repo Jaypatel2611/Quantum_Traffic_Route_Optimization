@@ -1,20 +1,28 @@
-import { useEffect, useState } from "react";
+import { AppStateProvider, useAppState } from './state/AppState';
+import { SetupScreen } from './screens/SetupScreen';
+import { LiveRunScreen } from './screens/LiveRunScreen';
+import { ResultsScreen } from './screens/ResultsScreen';
+import { GreenImpactScreen } from './screens/GreenImpactScreen';
+
+function ScreenRouter() {
+  const { screen } = useAppState();
+  switch (screen) {
+    case 'setup':
+      return <SetupScreen />;
+    case 'live-run':
+      return <LiveRunScreen />;
+    case 'results':
+      return <ResultsScreen />;
+    case 'green-impact':
+      return <GreenImpactScreen />;
+  }
+}
 
 function App() {
-  const [status, setStatus] = useState<string>("loading...");
-
-  useEffect(() => {
-    fetch(`${import.meta.env.VITE_API_BASE_URL}/health`)
-      .then((res) => res.json())
-      .then((data) => setStatus(data.status))
-      .catch(() => setStatus("unreachable"));
-  }, []);
-
   return (
-    <div>
-      <h1>SIH26137 — Quantum Traffic Route Optimization</h1>
-      <p>Backend status: {status}</p>
-    </div>
+    <AppStateProvider>
+      <ScreenRouter />
+    </AppStateProvider>
   );
 }
 

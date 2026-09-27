@@ -7,13 +7,14 @@ describe("App", () => {
     globalThis.fetch = vi.fn(() =>
       Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({ status: "ok" }),
+        json: () => Promise.resolve([{ id: "indiranagar_bengaluru", name: "Indiranagar, Bengaluru" }]),
       } as Response)
     );
   });
 
-  it("renders the backend health status after fetching it", async () => {
+  it("renders the Setup screen first, with the cached city loaded", async () => {
     render(<App />);
-    await waitFor(() => screen.getByText(/backend status: ok/i));
+    await waitFor(() => screen.getByText(/city \/ network setup/i));
+    await waitFor(() => screen.getByText(/indiranagar, bengaluru/i));
   });
 });

@@ -1,0 +1,118 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-27T00:00:00Z",
+  "title": "Design System: Quantum Traffic Route Optimization",
+  "extensions": {
+    "colorMeta": {
+      "route-classical": { "role": "primary", "displayName": "Classical Blue", "canonical": "#2e6be6", "tonalRamp": ["#0d1b33", "#152a52", "#1d3a72", "#254991", "#2e6be6", "#5c8bec", "#8babf1", "#bacaf7"] },
+      "route-quantum": { "role": "primary", "displayName": "Quantum Amber", "canonical": "#e8871e", "tonalRamp": ["#3a2205", "#5c3608", "#7e490b", "#a15d0e", "#e8871e", "#eda254", "#f2bd83", "#f7d8b1"] },
+      "accent-eco": { "role": "secondary", "displayName": "Eco Green", "canonical": "#2fbf71", "tonalRamp": ["#092e1c", "#0e4a2c", "#13663d", "#1e934f", "#2fbf71", "#5ecd91", "#8edcb1", "#bfead0"] },
+      "bg-canvas": { "role": "neutral", "displayName": "Canvas", "canonical": "#12161c", "tonalRamp": ["#12161c", "#1b212b", "#232b38", "#2e3742", "#4a5560", "#6b7580", "#9aa5b1", "#edeff2"] },
+      "bg-surface": { "role": "neutral", "displayName": "Surface", "canonical": "#1b212b", "tonalRamp": ["#12161c", "#1b212b", "#232b38", "#2e3742", "#4a5560", "#6b7580", "#9aa5b1", "#edeff2"] },
+      "bg-surface-raised": { "role": "neutral", "displayName": "Surface Raised", "canonical": "#232b38", "tonalRamp": ["#12161c", "#1b212b", "#232b38", "#2e3742", "#4a5560", "#6b7580", "#9aa5b1", "#edeff2"] },
+      "border-subtle": { "role": "neutral", "displayName": "Border Subtle", "canonical": "#2e3742" },
+      "text-primary": { "role": "neutral", "displayName": "Text Primary", "canonical": "#edeff2" },
+      "text-secondary": { "role": "neutral", "displayName": "Text Secondary", "canonical": "#9aa5b1" },
+      "status-error": { "role": "neutral", "displayName": "Status Error", "canonical": "#e5484d" },
+      "status-warning": { "role": "neutral", "displayName": "Status Warning", "canonical": "#f2c94c" },
+      "status-live": { "role": "neutral", "displayName": "Status Live", "canonical": "#2fbf71" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Screen-level h1 titles only." },
+      "h2": { "displayName": "Title", "purpose": "Sub-section headings and modal titles." },
+      "body": { "displayName": "Body", "purpose": "Prose, labels, form fields, button text." },
+      "caption": { "displayName": "Caption", "purpose": "Captions, legend labels, fairness-footer metadata." },
+      "stat-lg": { "displayName": "Stat Large", "purpose": "Headline mono figure on a stat/status card." },
+      "stat-sm": { "displayName": "Stat Small", "purpose": "Inline mono value, not a card headline." }
+    },
+    "shadows": [
+      { "name": "modal-elevation", "value": "0 8px 24px rgba(0,0,0,0.4)", "purpose": "The modal panel over its scrim — the system's one shadow." },
+      { "name": "enable-pulse", "value": "0 0 0 0 rgba(237,239,242,0.5) -> 0 0 0 10px rgba(237,239,242,0)", "purpose": "One-shot ring animation when a gated primary CTA becomes clickable." }
+    ],
+    "motion": [
+      { "name": "pulse-once", "value": "0.6s ease-out 1, keyframes 0%{box-shadow:0 0 0 0 rgba(237,239,242,.5)} 100%{box-shadow:0 0 0 10px rgba(237,239,242,0)}", "purpose": "Fires once when View Results becomes enabled; never loops." }
+    ],
+    "breakpoints": []
+  },
+  "components": [
+    {
+      "name": "Primary Button (enabled)",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one primary CTA per screen, pinned in a sticky bottom footer.",
+      "html": "<button class=\"ds-btn-primary\">Run Optimization</button>",
+      "css": ".ds-btn-primary { background: #edeff2; color: #12161c; border: none; border-radius: 6px; padding: 12px 24px; font-family: Inter, system-ui, sans-serif; font-weight: 600; font-size: 14px; cursor: pointer; } .ds-btn-primary:hover { opacity: 0.92; } .ds-btn-primary:focus-visible { outline: 2px solid #edeff2; outline-offset: 2px; }"
+    },
+    {
+      "name": "Primary Button (disabled)",
+      "kind": "button",
+      "refersTo": "button-primary-disabled",
+      "description": "Gated CTA state before its precondition (e.g. both solvers finishing) is met.",
+      "html": "<button class=\"ds-btn-primary-disabled\" disabled>View Results</button>",
+      "css": ".ds-btn-primary-disabled { background: #232b38; color: #9aa5b1; border: none; border-radius: 6px; padding: 12px 24px; font-family: Inter, system-ui, sans-serif; font-weight: 600; font-size: 14px; cursor: not-allowed; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Secondary action, e.g. 'How It Works' disclosure trigger, paired with the drawn InfoIcon.",
+      "html": "<button class=\"ds-btn-ghost\">How It Works <svg class=\"ds-icon-info\" width=\"14\" height=\"14\" viewBox=\"0 0 16 16\" fill=\"none\" aria-hidden=\"true\"><circle cx=\"8\" cy=\"8\" r=\"6.5\" stroke=\"currentColor\" stroke-width=\"1.3\"/><line x1=\"8\" y1=\"7.2\" x2=\"8\" y2=\"11.2\" stroke=\"currentColor\" stroke-width=\"1.3\" stroke-linecap=\"round\"/><circle cx=\"8\" cy=\"4.8\" r=\"0.9\" fill=\"currentColor\"/></svg></button>",
+      "css": ".ds-btn-ghost { background: #1b212b; color: #9aa5b1; border: 1px solid #2e3742; border-radius: 4px; padding: 8px 12px; display: inline-flex; align-items: center; gap: 8px; font-family: Inter, system-ui, sans-serif; font-size: 14px; cursor: pointer; } .ds-btn-ghost:hover { color: #edeff2; border-color: #4a5560; } .ds-btn-ghost:focus-visible { outline: 2px solid #edeff2; outline-offset: 2px; }"
+    },
+    {
+      "name": "Stat Card",
+      "kind": "card",
+      "refersTo": "stat-card",
+      "description": "The one figure-reporting tile; colored left border is the app's sole color-encoding mechanism.",
+      "html": "<div class=\"ds-stat-card\" style=\"border-left-color:#2fbf71\"><div class=\"ds-stat-label\">CO2 saved</div><div class=\"ds-stat-value\">4.82 kg</div><div class=\"ds-stat-caption\">12.3% vs. OR-Tools baseline</div></div>",
+      "css": ".ds-stat-card { background: #1b212b; border-left: 3px solid; border-radius: 6px; padding: 16px; min-width: 160px; font-family: Inter, system-ui, sans-serif; } .ds-stat-label { font-size: 12px; line-height: 16px; color: #9aa5b1; } .ds-stat-value { font-family: 'IBM Plex Mono', ui-monospace, Consolas, monospace; font-weight: 600; font-size: 28px; line-height: 32px; color: #edeff2; margin: 4px 0; } .ds-stat-caption { font-size: 12px; line-height: 16px; color: #9aa5b1; }"
+    },
+    {
+      "name": "Modal",
+      "kind": "custom",
+      "refersTo": "modal-surface",
+      "description": "The system's one shadowed, larger-radius overlay component; scrim click-to-close.",
+      "html": "<div class=\"ds-modal-scrim\"><div class=\"ds-modal-panel\"><div class=\"ds-modal-header\"><h2>Assumptions</h2><button class=\"ds-modal-close\" aria-label=\"Close\">&times;</button></div><p>Modal body content.</p></div></div>",
+      "css": ".ds-modal-scrim { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; } .ds-modal-panel { background: #1b212b; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); padding: 24px; max-width: 640px; width: 90%; max-height: 85vh; overflow-y: auto; font-family: Inter, system-ui, sans-serif; color: #edeff2; } .ds-modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; } .ds-modal-close { background: none; border: none; color: #9aa5b1; font-size: 20px; cursor: pointer; } .ds-modal-close:focus-visible { outline: 2px solid #edeff2; outline-offset: 2px; }"
+    },
+    {
+      "name": "Route Legend",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "Always-visible color+dash key pairing OR-Tools/QPSO identity colors with their line style, repeated on every screen showing both routes.",
+      "html": "<div class=\"ds-legend\"><span class=\"ds-legend-entry\"><svg width=\"20\" height=\"8\"><line x1=\"0\" y1=\"4\" x2=\"20\" y2=\"4\" stroke=\"#2e6be6\" stroke-width=\"3\"/></svg>OR-Tools (classical)</span><span class=\"ds-legend-entry\"><svg width=\"20\" height=\"8\"><line x1=\"0\" y1=\"4\" x2=\"20\" y2=\"4\" stroke=\"#e8871e\" stroke-width=\"3\" stroke-dasharray=\"5 3\"/></svg>QPSO (quantum-inspired)</span></div>",
+      "css": ".ds-legend { display: flex; gap: 16px; font-family: Inter, system-ui, sans-serif; font-size: 12px; color: #9aa5b1; } .ds-legend-entry { display: inline-flex; align-items: center; gap: 8px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Operations Console",
+    "overview": "This is an engineering console, not a consumer app — the references that actually landed in the build are QGIS/Mapbox Studio-style map-first layout, Grafana/Datadog-style dense monospace stat tiles, and Palantir Foundry's flat dark operational chrome. Every screen exists to show one comparison — OR-Tools (classical) against QPSO (quantum-inspired) — never one algorithm's output alone. The palette is functional, not decorative: two colors carry algorithm identity, one color carries eco-positive figures, and everything else is neutral lightness-stepped gray. There is exactly one theme; light mode was never built and is out of scope.\n\nConfirmed rejections, carried from the brief and honored by the shipped code: no purple/violet gradients, no glowing particle/neural-net/\"quantum swirl\" motifs, no rounded bubbly consumer-SaaS cards, no illustrated/cartoon empty states, no decorative rainbow color use, no Unicode/emoji glyphs standing in for icons.",
+    "keyCharacteristics": [
+      "Flat dark chrome, depth by lightness step (canvas -> surface -> surface-raised), never by shadow, except modals.",
+      "Inter for UI text, IBM Plex Mono for every measured number.",
+      "A colored left border is the app's one color-encoding mechanism, reused identically on every stat/status tile.",
+      "Two colors are reserved: they mean one thing each, everywhere, and nothing else."
+    ],
+    "rules": [
+      { "name": "The One Meaning Rule", "body": "route-classical, route-quantum, and accent-eco each mean exactly one thing and are never reused as a generic UI accent, hover color, or decorative highlight. This was the system's one material defect caught in finish review and the fix is now the rule.", "section": "colors" },
+      { "name": "The Border-Encodes Rule", "body": "Color-coding a tile is done with a 3px solid left border on an otherwise neutral card, never by tinting background or text.", "section": "colors" },
+      { "name": "The Measured-Number Rule", "body": "Any value read off a solver, sensor, or computation renders in font-mono; Inter is reserved for prose and labels.", "section": "typography" },
+      { "name": "The Sticky-CTA Rule", "body": "A screen's one primary action button sits in a position:sticky, bottom:0 footer so it stays reachable without scroll.", "section": "layout" },
+      { "name": "The Flat-Except-Interrupt Rule", "body": "Shadows exist only where content interrupts the console (the modal). Every persistent surface stays flat.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do render every measured number in font-mono, never in Inter.",
+      "Do encode algorithm or eco-figure identity with a 3px solid colored left border on an otherwise neutral card.",
+      "Do pair route-quantum with a dashed stroke and route-classical with a solid stroke everywhere a route/line appears.",
+      "Do pad a small/near-flat data series' Y-axis domain so a real-but-flat convergence line stays visibly drawn above the axis.",
+      "Do keep a screen's one primary CTA in a position:sticky, bottom:0 footer.",
+      "Do draw every icon as an inline SVG at one consistent stroke weight, never a Unicode/emoji glyph."
+    ],
+    "donts": [
+      "Don't reuse route-classical, route-quantum, or accent-eco as a generic UI accent, hover color, or decorative highlight on chrome that isn't reporting that specific algorithm's or eco figure's data.",
+      "Don't add a box-shadow to a persistent screen surface; shadows are reserved for the modal's overlay interrupt only.",
+      "Don't introduce a second font family, an emoji/Unicode icon, a purple/violet gradient, or a 'quantum swirl' particle motif.",
+      "Don't show one algorithm's result alone on a primary screen; the comparison is the unit of display."
+    ]
+  }
+}

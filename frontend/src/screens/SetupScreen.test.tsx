@@ -1,0 +1,22 @@
+import { describe, it, expect } from 'vitest';
+import { parseNodesCsv } from './SetupScreen';
+
+describe('parseNodesCsv', () => {
+  it('parses node_id/lat/lon/demand rows, first row is the depot', () => {
+    const csv = 'node_id,lat,lon,demand\ndepot,12.9716,77.6412,0\nn1,12.9750,77.6440,30\n';
+    const nodes = parseNodesCsv(csv);
+    expect(nodes).toEqual([
+      { id: 'depot', lat: 12.9716, lon: 77.6412, demand: 0 },
+      { id: 'n1', lat: 12.975, lon: 77.644, demand: 30 },
+    ]);
+  });
+
+  it('throws when a required column is missing', () => {
+    expect(() => parseNodesCsv('node_id,lat,lon\ndepot,12.9,77.6\n')).toThrow(/must have columns/i);
+  });
+
+  it('ignores trailing blank lines', () => {
+    const csv = 'node_id,lat,lon,demand\ndepot,12.9716,77.6412,0\n\n';
+    expect(parseNodesCsv(csv)).toHaveLength(1);
+  });
+});

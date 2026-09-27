@@ -4,9 +4,33 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>frontend</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Inter:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <title>Quantum Traffic Route Optimization</title>
   </head>
   <body>
+    <!--
+      THESIS: the comparison is the hero -- every primary screen's dominant
+      element is a live side-by-side delta between OR-Tools and QPSO, never
+      one algorithm's output shown alone.
+      OWN-WORLD: dark operational console (bg-canvas #12161C), Inter for UI,
+      IBM Plex Mono for every measured number; fixed blue/#2E6BE6 (classical,
+      solid line) vs amber/#E8871E (quantum, dashed line) encoding, never
+      repurposed; small 4-8px radii, elevation via lightness steps not shadow.
+      STORY: a judge sees which algorithm won, by how much, and can verify
+      any CO2/fuel/time figure's source in one tap -- in under 2 minutes.
+      FIRST VIEWPORT: Setup screen, 30/70 split -- control panel left,
+      live map preview right, sticky full-width "Run Optimization" CTA.
+      FORM: brief-pinned world (SIH26137_Design_Brief.md Sections 2-3) --
+      no concept roll; the aesthetic was already fully specified, not open.
+      FINISH: unreviewed and undocumented is unfinished; this build ends
+      with the finish review, the verdict, DESIGN.md, and every shipping
+      raster carrying its provenance.
+    -->
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

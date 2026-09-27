@@ -44,6 +44,39 @@ def test_unknown_job_id_result_returns_404():
     assert response.status_code == 404
 
 
+def test_too_few_nodes_returns_422():
+    payload = {**_NODES_PAYLOAD, "nodes": _NODES_PAYLOAD["nodes"][:1]}
+    response = client.post("/jobs/from-nodes", json=payload)
+    assert response.status_code == 422
+
+
+def test_non_positive_vehicle_capacity_returns_422():
+    payload = {**_NODES_PAYLOAD, "vehicle_capacity": 0}
+    response = client.post("/jobs/from-nodes", json=payload)
+    assert response.status_code == 422
+
+
+def test_non_positive_num_vehicles_returns_422():
+    payload = {**_NODES_PAYLOAD, "num_vehicles": 0}
+    response = client.post("/jobs/from-nodes", json=payload)
+    assert response.status_code == 422
+
+
+def test_invalid_node_coordinates_return_422_not_500():
+    bad_nodes = [{**_NODES_PAYLOAD["nodes"][0]}, {**_NODES_PAYLOAD["nodes"][1], "lat": 200.0}]
+    payload = {**_NODES_PAYLOAD, "nodes": bad_nodes}
+    response = client.post("/jobs/from-nodes", json=payload)
+    assert response.status_code == 422
+
+
+def test_missing_node_field_returns_422_not_500():
+    bad_nodes = [{**_NODES_PAYLOAD["nodes"][0]}, {"id": "n1", "lat": 12.97, "lon": 77.64}]
+    del bad_nodes[1]["lon"]
+    payload = {**_NODES_PAYLOAD, "nodes": bad_nodes}
+    response = client.post("/jobs/from-nodes", json=payload)
+    assert response.status_code == 422
+
+
 def test_from_nodes_job_builds_matrices_and_produces_a_comparable_result():
     """End-to-end: raw lat/lon nodes -> cached-graph matrix build -> both
     solvers -> a result payload the Results/Green Impact screens can render

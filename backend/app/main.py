@@ -91,14 +91,24 @@ async def create_job_from_nodes(payload: dict, background_tasks: BackgroundTasks
     if city is None:
         raise HTTPException(status_code=404, detail=f"unknown city_id: {payload['city_id']!r}")
 
-    nodes = [
-        Node(
-            id=n["id"],
-            coordinates=GeographicCoordinates(lat=n["lat"], lon=n["lon"]),
-            demand=n.get("demand", 0.0),
-        )
-        for n in payload["nodes"]
-    ]
+    if len(payload.get("nodes", [])) < 2:
+        raise HTTPException(status_code=422, detail="nodes must include a depot plus at least one customer")
+    if payload.get("vehicle_capacity", 0) <= 0:
+        raise HTTPException(status_code=422, detail="vehicle_capacity must be > 0")
+    if payload.get("num_vehicles", 0) <= 0:
+        raise HTTPException(status_code=422, detail="num_vehicles must be > 0")
+
+    try:
+        nodes = [
+            Node(
+                id=n["id"],
+                coordinates=GeographicCoordinates(lat=n["lat"], lon=n["lon"]),
+                demand=n.get("demand", 0.0),
+            )
+            for n in payload["nodes"]
+        ]
+    except (KeyError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=f"invalid node entry: {exc}") from exc
     graph = load_cached_graph(city["cache_path"])
     distance_matrix, base_time_matrix = build_distance_time_matrix(graph, nodes)
     seed = payload["seed"]

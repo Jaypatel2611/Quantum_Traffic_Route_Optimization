@@ -1,6 +1,11 @@
 services:
   backend:
-    build: ./backend
+    # Build context is the repo root, not ./backend: the container needs
+    # cache/ (the offline-cached OSMnx graph) too, which /jobs/from-nodes
+    # now reads at runtime -- it lives outside backend/'s own directory.
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     ports:
       - "8000:8000"
   frontend:

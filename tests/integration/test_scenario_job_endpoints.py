@@ -71,3 +71,26 @@ def test_from_nodes_job_builds_matrices_and_produces_a_comparable_result():
     )
     assert green["fuel_saved_liters"] == pytest.approx(green["co2_saved_kg"] / 2.68)
     assert "emission_factor_source" in green
+
+
+def test_num_particles_is_forwarded_to_the_qpso_solver():
+    """Regression test: /jobs/from-nodes originally built its job payload
+    without num_particles/max_iterations, so a caller's tuning request was
+    silently dropped and every job ran with run_qpso_job's bare defaults
+    regardless of what was asked for -- found via two HTTP requests with
+    very different particle counts producing bit-identical results, not a
+    test, until this one was added."""
+    payload = {**_NODES_PAYLOAD, "num_particles": 7}
+    response = client.post("/jobs/from-nodes", json=payload)
+    job_id = response.json()["job_id"]
+
+    deadline = time.monotonic() + 20.0
+    result = None
+    while time.monotonic() < deadline:
+        result = client.get(f"/jobs/{job_id}/result").json()
+        if result["status"] == "done":
+            break
+        time.sleep(0.5)
+
+    assert result["status"] == "done", f"job never completed: {result}"
+    assert result["qpso"]["meta"]["num_particles"] == 7

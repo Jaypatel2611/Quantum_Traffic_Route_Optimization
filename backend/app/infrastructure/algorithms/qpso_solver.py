@@ -103,6 +103,41 @@ def split_into_routes(
     return routes
 
 
+def _stops_time(stops: list[int], time_matrix) -> float:
+    return sum(time_matrix[a][b] for a, b in zip(stops, stops[1:]))
+
+
+def two_opt_route(route: list[int], time_matrix, depot_index: int = 0, max_passes: int = 100) -> list[int]:
+    """Classic 2-opt local search, reordering customers *within* one route
+    to reduce total time (never moving a customer to a different route, so
+    capacity/demand per route is untouched). QPSO's ROV/continuous-position
+    encoding plus the DP split gives a globally-explored route grouping and
+    a cost-minimizing cut of a fixed tour order, but neither ever locally
+    polishes the resulting visiting order the way OR-Tools's own
+    GUIDED_LOCAL_SEARCH continuously does -- found to be the real gap after
+    the split fix and a correctly-forwarded higher particle count still
+    left QPSO's real routes far worse than OR-Tools's even with 4000+
+    iterations and a 60s budget (not a search-depth problem, a missing
+    refinement step). Runs once on the final best routes, not per-particle
+    per-iteration -- cheap at typical per-vehicle route lengths, and it
+    would defeat the point of comparing QPSO's own swarm search against
+    OR-Tools if it ran inside the fitness-evaluation hot loop instead."""
+    if len(route) < 3:
+        return route
+    stops = [depot_index] + [c + 1 for c in route] + [depot_index]
+    for _ in range(max_passes):
+        improved = False
+        for i in range(1, len(stops) - 2):
+            for j in range(i + 1, len(stops) - 1):
+                candidate = stops[:i] + stops[i:j + 1][::-1] + stops[j + 1:]
+                if _stops_time(candidate, time_matrix) < _stops_time(stops, time_matrix) - 1e-9:
+                    stops = candidate
+                    improved = True
+        if not improved:
+            break
+    return [c - 1 for c in stops[1:-1]]
+
+
 def capacity_penalty(
     routes: list[list[int]], demands: list[float], vehicle_capacity: float, lam: float
 ) -> float:
@@ -278,11 +313,13 @@ def run_qpso(
         positions = attractor + sign * alpha * np.abs(mbest - positions) * np.log(1.0 / u)
 
     best_routes = split_into_routes(rov_map(gbest_position), num_vehicles, time_matrix, depot_index)
+    best_routes = [two_opt_route(r, time_matrix, depot_index) for r in best_routes]
     meta = {
         "seed": seed,
         "convergence_history": convergence_history,
         "iterations_run": iteration + 1,
         "stopped_reason": stopped_reason,
+        "num_particles": num_particles,
     }
     return best_routes, gbest_fitness, meta
 

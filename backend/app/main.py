@@ -115,6 +115,15 @@ async def create_job_from_nodes(payload: dict, background_tasks: BackgroundTasks
         "num_vehicles": payload["num_vehicles"],
         "depot_index": payload.get("depot_index", 0),
     }
+    # Optional QPSO tuning knobs -- forwarded only when the caller sets
+    # them, so run_qpso_job's own defaults (30 particles, 500 iterations)
+    # still apply otherwise. Omitting this forwarding entirely was a real
+    # bug: a caller passing num_particles had it silently dropped, making
+    # two requests with different particle counts behave identically.
+    if "num_particles" in payload:
+        job_payload["num_particles"] = payload["num_particles"]
+    if "max_iterations" in payload:
+        job_payload["max_iterations"] = payload["max_iterations"]
     background_tasks.add_task(
         orchestrator.run_comparison, job_id, job_payload, seed, payload["time_budget_s"]
     )

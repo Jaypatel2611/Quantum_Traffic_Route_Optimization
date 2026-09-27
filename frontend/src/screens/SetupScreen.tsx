@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { createJob, fetchCities } from '../api/client';
 import type { City, ScenarioNode } from '../api/types';
 import { useAppActions } from '../state/AppState';
-import { MapCanvas } from '../components/MapCanvas';
+import { MapCanvas } from '../components/LazyMapCanvas';
 
 const CSV_TEMPLATE = 'node_id,lat,lon,demand\ndepot,12.9716,77.6412,0\nn1,12.9750,77.6440,30\n';
 

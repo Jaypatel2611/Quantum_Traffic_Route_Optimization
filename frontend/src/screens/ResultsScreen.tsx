@@ -1,5 +1,5 @@
 import { useAppActions, useAppState } from '../state/AppState';
-import { MapCanvas } from '../components/MapCanvas';
+import { MapCanvas } from '../components/LazyMapCanvas';
 import { RouteComparisonTable } from '../components/RouteComparisonTable';
 import { RouteLegend } from '../components/RouteLegend';
 

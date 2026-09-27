@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { createJob, fetchCities } from '../api/client';
-import type { City, ScenarioNode } from '../api/types';
+import { createJob, fetchCities, fetchEdges } from '../api/client';
+import type { AccidentEdge, City, GraphEdge, ScenarioNode } from '../api/types';
 import { useAppActions } from '../state/AppState';
 import { MapCanvas } from '../components/LazyMapCanvas';
 
@@ -18,6 +18,14 @@ const DEFAULT_SCENARIO_NODES: ScenarioNode[] = [
   { id: 'n3', lat: 12.976, lon: 77.639, demand: 25 },
   { id: 'n4', lat: 12.967, lon: 77.643, demand: 35 },
 ];
+
+/** Must match the backend's own `f"{min(u,v)}_{max(u,v)}"` convention
+ * (cached_graph_repository.py's list_edges) exactly, order-independent --
+ * this is the only thing that lets the selected edge highlight itself on
+ * the map after being picked. */
+export function edgeIdFor(a: number, b: number): string {
+  return `${Math.min(a, b)}_${Math.max(a, b)}`;
+}
 
 /** Template's own documented assumption (not in the PRD's schema, which
  * left this undefined): the CSV's first data row is the depot -- matches
@@ -59,6 +67,10 @@ export function SetupScreen() {
   const [numVehicles, setNumVehicles] = useState(2);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [accidentMode, setAccidentMode] = useState(false);
+  const [edges, setEdges] = useState<GraphEdge[]>([]);
+  const [edgesError, setEdgesError] = useState<string | null>(null);
+  const [accidentEdge, setAccidentEdge] = useState<AccidentEdge | null>(null);
 
   useEffect(() => {
     fetchCities()
@@ -68,6 +80,20 @@ export function SetupScreen() {
       })
       .catch(() => setCsvError('Could not reach backend for the city list.'));
   }, []);
+
+  function handleToggleAccidentMode() {
+    const next = !accidentMode;
+    setAccidentMode(next);
+    if (next && edges.length === 0 && cityId) {
+      fetchEdges(cityId)
+        .then(setEdges)
+        .catch(() => setEdgesError('Could not load road segments for this city.'));
+    }
+  }
+
+  function handleEdgeClick(edge: GraphEdge) {
+    setAccidentEdge({ fromNodeId: edge.fromNodeId, toNodeId: edge.toNodeId });
+  }
 
   const canRun = cityId !== '' && nodes.length >= 2 && !submitting;
 
@@ -93,7 +119,7 @@ export function SetupScreen() {
       numVehicles,
       seed: 42,
       timeBudgetS: 8.0,
-      accidentEdge: null,
+      accidentEdge,
     };
     try {
       const jobId = await createJob(scenario);
@@ -175,9 +201,37 @@ export function SetupScreen() {
         </label>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-          <button disabled title="Edge-level accident injection needs a graph-edge API not built in this phase" style={toggleButtonStyle}>
-            Inject Accident (coming soon)
+          <button
+            onClick={handleToggleAccidentMode}
+            style={{
+              ...toggleButtonStyle,
+              borderColor: accidentMode ? 'var(--status-error)' : 'var(--border-subtle)',
+              color: accidentMode ? 'var(--status-error)' : 'var(--text-secondary)',
+            }}
+          >
+            {accidentMode ? 'Click a road segment on the map →' : 'Inject Accident'}
           </button>
+          {edgesError && <span className="text-caption" style={{ color: 'var(--status-error)' }}>{edgesError}</span>}
+          {accidentEdge && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+              <span
+                className="text-caption"
+                style={{
+                  background: 'var(--status-error)', color: 'var(--bg-canvas)',
+                  borderRadius: 'var(--radius-sm)', padding: '2px 8px', fontWeight: 600,
+                }}
+              >
+                ×5 delay
+              </span>
+              <button
+                onClick={() => setAccidentEdge(null)}
+                className="text-caption"
+                style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', textDecoration: 'underline' }}
+              >
+                Clear
+              </button>
+            </div>
+          )}
         </div>
 
         {submitError && <span className="text-caption" style={{ color: 'var(--status-error)' }}>{submitError}</span>}
@@ -205,7 +259,13 @@ export function SetupScreen() {
       </div>
 
       <div style={{ width: '70%', padding: 'var(--space-6)' }}>
-        <MapCanvas nodes={nodes} heightPx={560} />
+        <MapCanvas
+          nodes={nodes}
+          heightPx={560}
+          edges={accidentMode ? edges : []}
+          selectedEdgeId={accidentEdge ? edgeIdFor(accidentEdge.fromNodeId, accidentEdge.toNodeId) : null}
+          onEdgeClick={accidentMode ? handleEdgeClick : undefined}
+        />
       </div>
     </div>
   );

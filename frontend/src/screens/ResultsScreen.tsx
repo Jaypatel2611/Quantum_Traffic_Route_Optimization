@@ -27,6 +27,12 @@ export function ResultsScreen() {
         <RouteLegend />
       </div>
 
+      {result.accident_edge && (
+        <p className="text-caption" style={{ color: 'var(--status-warning)' }}>
+          Re-route triggered by an injected accident (×5 delay on the selected road segment)
+        </p>
+      )}
+
       <MapCanvas
         nodes={scenario.nodes}
         heightPx={480}

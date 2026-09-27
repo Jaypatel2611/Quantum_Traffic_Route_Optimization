@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseNodesCsv } from './SetupScreen';
+import { edgeIdFor, parseNodesCsv } from './SetupScreen';
 
 describe('parseNodesCsv', () => {
   it('parses node_id/lat/lon/demand rows, first row is the depot', () => {
@@ -18,5 +18,12 @@ describe('parseNodesCsv', () => {
   it('ignores trailing blank lines', () => {
     const csv = 'node_id,lat,lon,demand\ndepot,12.9716,77.6412,0\n\n';
     expect(parseNodesCsv(csv)).toHaveLength(1);
+  });
+});
+
+describe('edgeIdFor', () => {
+  it('matches the backend\'s min/max convention regardless of argument order', () => {
+    expect(edgeIdFor(5, 3)).toBe('3_5');
+    expect(edgeIdFor(3, 5)).toBe('3_5');
   });
 });

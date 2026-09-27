@@ -32,11 +32,17 @@ export interface GreenImpact {
   emission_factor_source: string;
 }
 
+export interface AccidentEdge {
+  fromNodeId: number;
+  toNodeId: number;
+}
+
 export interface JobResultDone {
   status: 'done';
   ortools: AlgorithmResult;
   qpso: AlgorithmResult;
   green_impact: GreenImpact;
+  accident_edge: { from_node_id: number; to_node_id: number } | null;
 }
 
 export interface JobResultPending {
@@ -46,9 +52,16 @@ export interface JobResultPending {
 
 export type JobResult = JobResultDone | JobResultPending;
 
-export interface AccidentEdge {
-  fromNodeId: string;
-  toNodeId: string;
+/** One undirected road segment from GET /cities/{city_id}/edges -- Flow C's
+ * accident-injection map renders and picks from these. */
+export interface GraphEdge {
+  edgeId: string;
+  fromNodeId: number;
+  toNodeId: number;
+  fromLat: number;
+  fromLon: number;
+  toLat: number;
+  toLon: number;
 }
 
 export interface ScenarioConfig {

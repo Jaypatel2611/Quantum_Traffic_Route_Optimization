@@ -1,4 +1,4 @@
-import type { City, JobResult, ScenarioConfig } from './types';
+import type { City, GraphEdge, JobResult, ScenarioConfig } from './types';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -14,6 +14,29 @@ export function fetchCities(): Promise<City[]> {
   return getJson<City[]>('/cities');
 }
 
+interface EdgeWire {
+  edge_id: string;
+  from_node_id: number;
+  to_node_id: number;
+  from_lat: number;
+  from_lon: number;
+  to_lat: number;
+  to_lon: number;
+}
+
+export async function fetchEdges(cityId: string): Promise<GraphEdge[]> {
+  const wire = await getJson<EdgeWire[]>(`/cities/${cityId}/edges`);
+  return wire.map((e) => ({
+    edgeId: e.edge_id,
+    fromNodeId: e.from_node_id,
+    toNodeId: e.to_node_id,
+    fromLat: e.from_lat,
+    fromLon: e.from_lon,
+    toLat: e.to_lat,
+    toLon: e.to_lon,
+  }));
+}
+
 export async function createJob(scenario: ScenarioConfig): Promise<string> {
   const response = await fetch(`${BASE_URL}/jobs/from-nodes`, {
     method: 'POST',
@@ -25,6 +48,12 @@ export async function createJob(scenario: ScenarioConfig): Promise<string> {
       num_vehicles: scenario.numVehicles,
       seed: scenario.seed,
       time_budget_s: scenario.timeBudgetS,
+      ...(scenario.accidentEdge && {
+        accident_edge: {
+          from_node_id: scenario.accidentEdge.fromNodeId,
+          to_node_id: scenario.accidentEdge.toNodeId,
+        },
+      }),
     }),
   });
   if (!response.ok) {

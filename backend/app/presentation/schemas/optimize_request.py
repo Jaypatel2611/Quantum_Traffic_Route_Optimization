@@ -8,6 +8,14 @@ class NodeSchema(BaseModel):
     demand: float = Field(default=0.0, ge=0.0)
 
 
+class AccidentEdgeSchema(BaseModel):
+    """A pair of graph node ids from GET /cities/{city_id}/edges -- Flow C's
+    accident injection, order-independent (the underlying repository keys
+    it by frozenset)."""
+    from_node_id: int
+    to_node_id: int
+
+
 class CreateJobFromNodesRequest(BaseModel):
     city_id: str
     nodes: list[NodeSchema] = Field(min_length=2)
@@ -19,3 +27,4 @@ class CreateJobFromNodesRequest(BaseModel):
     hour_of_day: float = 8.0
     num_particles: int | None = Field(default=None, gt=0)
     max_iterations: int | None = Field(default=None, gt=0)
+    accident_edge: AccidentEdgeSchema | None = None

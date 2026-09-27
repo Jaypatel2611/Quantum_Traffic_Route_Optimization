@@ -20,6 +20,13 @@ CITY_CATALOG = {
 }
 
 
+ACCIDENT_DELAY_MULTIPLIER = 5.0
+"""Design Brief Flow C's own "x5 delay" chip -- an accident multiplies the
+affected road segment's travel time fivefold, applied to every parallel/
+both-direction edge between the same two graph nodes (an accident blocks
+the road, not one direction's lane markings)."""
+
+
 class CachedGraphRepository:
     """GeospatialRepositoryPort implementation over the offline-cached
     OSMnx graphs (PRD Section 8: zero-network at runtime). Real Phase-7
@@ -28,9 +35,44 @@ class CachedGraphRepository:
     def list_cities(self) -> list[dict]:
         return [{"id": city_id, "name": info["name"]} for city_id, info in CITY_CATALOG.items()]
 
-    def build_matrices(self, city_id: str, nodes: list[Node]) -> tuple[np.ndarray, np.ndarray]:
+    def _load(self, city_id: str):
         city = CITY_CATALOG.get(city_id)
         if city is None:
             raise UnknownCityError(city_id)
-        graph = load_cached_graph(city["cache_path"])
+        return load_cached_graph(city["cache_path"])
+
+    def list_edges(self, city_id: str) -> list[dict]:
+        """One entry per undirected road segment (a MultiDiGraph has a
+        separate edge per direction, and sometimes parallel ways between
+        the same two nodes -- deduped here since they render as the same
+        visual line and Flow C selects a *segment*, not a direction)."""
+        graph = self._load(city_id)
+        seen: set[frozenset] = set()
+        edges = []
+        for u, v in graph.edges():
+            pair = frozenset((u, v))
+            if pair in seen:
+                continue
+            seen.add(pair)
+            edges.append({
+                "edge_id": f"{min(u, v)}_{max(u, v)}",
+                "from_node_id": u,
+                "to_node_id": v,
+                "from_lat": graph.nodes[u]["y"],
+                "from_lon": graph.nodes[u]["x"],
+                "to_lat": graph.nodes[v]["y"],
+                "to_lon": graph.nodes[v]["x"],
+            })
+        return edges
+
+    def build_matrices(
+        self, city_id: str, nodes: list[Node], accident_edge: tuple[int, int] | None = None
+    ) -> tuple[np.ndarray, np.ndarray]:
+        graph = self._load(city_id)
+        if accident_edge is not None:
+            graph = graph.copy()
+            pair = frozenset(accident_edge)
+            for u, v, data in graph.edges(data=True):
+                if frozenset((u, v)) == pair:
+                    data["travel_time"] *= ACCIDENT_DELAY_MULTIPLIER
         return build_distance_time_matrix(graph, nodes)

@@ -19,6 +19,12 @@ from app.presentation.sse.convergence_stream import convergence_event_stream
 
 router = APIRouter()
 
+# job_id -> {"from_node_id": int, "to_node_id": int}, for jobs created with
+# an accident_edge -- a presentation-layer concern (Results' "re-route
+# triggered by accident" caption), not the orchestrator's, so it's kept
+# here rather than added to OptimizationOrchestrator's own state.
+_accident_edges: dict[str, dict] = {}
+
 
 @router.post("/jobs/from-nodes", response_model=CreateJobResponse)
 async def create_job_from_nodes(
@@ -35,8 +41,15 @@ async def create_job_from_nodes(
         Node(id=n.id, coordinates=GeographicCoordinates(lat=n.lat, lon=n.lon), demand=n.demand)
         for n in request.nodes
     ]
+    accident_edge = (
+        (request.accident_edge.from_node_id, request.accident_edge.to_node_id)
+        if request.accident_edge
+        else None
+    )
     try:
-        distance_matrix, base_time_matrix = repository.build_matrices(request.city_id, nodes)
+        distance_matrix, base_time_matrix = repository.build_matrices(
+            request.city_id, nodes, accident_edge=accident_edge
+        )
     except UnknownCityError as exc:
         raise HTTPException(status_code=404, detail=f"unknown city_id: {request.city_id!r}") from exc
 
@@ -57,6 +70,11 @@ async def create_job_from_nodes(
         job_payload["num_particles"] = request.num_particles
     if request.max_iterations is not None:
         job_payload["max_iterations"] = request.max_iterations
+    if request.accident_edge is not None:
+        _accident_edges[job_id] = {
+            "from_node_id": request.accident_edge.from_node_id,
+            "to_node_id": request.accident_edge.to_node_id,
+        }
 
     background_tasks.add_task(
         orchestrator.run_comparison, job_id, job_payload, request.seed, request.time_budget_s
@@ -99,4 +117,5 @@ async def get_job_result(
         "ortools": ortools_payload,
         "qpso": qpso_payload,
         "green_impact": compute_green_impact(ortools_routes, qpso_routes),
+        "accident_edge": _accident_edges.get(job_id),
     }

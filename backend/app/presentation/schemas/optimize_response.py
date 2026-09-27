@@ -6,6 +6,21 @@ class CityResponse(BaseModel):
     name: str
 
 
+class EdgeResponse(BaseModel):
+    edge_id: str
+    from_node_id: int
+    to_node_id: int
+    from_lat: float
+    from_lon: float
+    to_lat: float
+    to_lon: float
+
+
+class AccidentEdgeResponse(BaseModel):
+    from_node_id: int
+    to_node_id: int
+
+
 class CreateJobResponse(BaseModel):
     job_id: str
 
@@ -38,3 +53,4 @@ class JobResultResponse(BaseModel):
     ortools: AlgorithmResultResponse | None = None
     qpso: AlgorithmResultResponse | None = None
     green_impact: GreenImpactResponse | None = None
+    accident_edge: AccidentEdgeResponse | None = None

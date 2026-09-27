@@ -6,6 +6,19 @@ import { MapCanvas } from '../components/LazyMapCanvas';
 
 const CSV_TEMPLATE = 'node_id,lat,lon,demand\ndepot,12.9716,77.6412,0\nn1,12.9750,77.6440,30\n';
 
+/** PRD Section 16: no screen is ever actually empty in the demo. Pre-seeds
+ * the same 5-node Indiranagar scenario used throughout Phase 5-7's own
+ * verification (docs/demo_scenarios/indiranagar_5.csv) -- a rehearsed,
+ * always-feasible starting point a judge sees immediately, not a blank
+ * upload prompt. Uploading a CSV replaces it. */
+const DEFAULT_SCENARIO_NODES: ScenarioNode[] = [
+  { id: 'depot', lat: 12.9716, lon: 77.6412, demand: 0 },
+  { id: 'n1', lat: 12.975, lon: 77.644, demand: 30 },
+  { id: 'n2', lat: 12.969, lon: 77.638, demand: 40 },
+  { id: 'n3', lat: 12.976, lon: 77.639, demand: 25 },
+  { id: 'n4', lat: 12.967, lon: 77.643, demand: 35 },
+];
+
 /** Template's own documented assumption (not in the PRD's schema, which
  * left this undefined): the CSV's first data row is the depot -- matches
  * this codebase's existing node_ids[0]="depot" convention throughout. */
@@ -39,7 +52,8 @@ export function SetupScreen() {
   const { startJob } = useAppActions();
   const [cities, setCities] = useState<City[]>([]);
   const [cityId, setCityId] = useState('');
-  const [nodes, setNodes] = useState<ScenarioNode[]>([]);
+  const [nodes, setNodes] = useState<ScenarioNode[]>(DEFAULT_SCENARIO_NODES);
+  const [usingDefault, setUsingDefault] = useState(true);
   const [csvError, setCsvError] = useState<string | null>(null);
   const [vehicleCapacity, setVehicleCapacity] = useState(100);
   const [numVehicles, setNumVehicles] = useState(2);
@@ -62,6 +76,7 @@ export function SetupScreen() {
     try {
       const text = await file.text();
       setNodes(parseNodesCsv(text));
+      setUsingDefault(false);
     } catch (err) {
       setNodes([]);
       setCsvError(err instanceof Error ? err.message : 'Could not parse CSV.');
@@ -133,7 +148,11 @@ export function SetupScreen() {
           </a>
           {csvError && <span className="text-caption" style={{ color: 'var(--status-error)' }}>{csvError}</span>}
           {nodes.length > 0 && !csvError && (
-            <span className="text-caption">{nodes.length} nodes loaded (depot: {nodes[0]?.id})</span>
+            <span className="text-caption">
+              {usingDefault
+                ? `Using default 5-node demo scenario (depot: ${nodes[0]?.id})`
+                : `${nodes.length} nodes loaded (depot: ${nodes[0]?.id})`}
+            </span>
           )}
         </div>
 

@@ -13,7 +13,7 @@ from app.domain.exceptions import UnknownCityError
 from app.domain.value_objects.geographic_coordinates import GeographicCoordinates
 from app.infrastructure.geospatial.stochastic_delay_injector import inject_stochastic_delay
 from app.presentation.api.v1.dependencies import get_geospatial_repository, get_orchestrator
-from app.presentation.schemas.optimize_request import CreateJobFromNodesRequest
+from app.presentation.schemas.optimize_request import CreateJobFromNodesRequest, CreateJobRequest
 from app.presentation.schemas.optimize_response import CreateJobResponse, JobResultResponse
 from app.presentation.sse.convergence_stream import convergence_event_stream
 
@@ -24,6 +24,37 @@ router = APIRouter()
 # triggered by accident" caption), not the orchestrator's, so it's kept
 # here rather than added to OptimizationOrchestrator's own state.
 _accident_edges: dict[str, dict] = {}
+
+
+@router.post("/jobs", response_model=CreateJobResponse)
+async def create_job(
+    request: CreateJobRequest,
+    background_tasks: BackgroundTasks,
+    orchestrator: OptimizationOrchestrator = Depends(get_orchestrator),
+) -> dict:
+    """The real, Pydantic-validated version of Phase 5's raw-matrix bridge
+    (main.py's original /jobs) -- same contract, now rejecting malformed
+    matrices/counts at the request boundary instead of failing deep inside
+    the solver or the orchestrator."""
+    job_id = str(uuid.uuid4())
+    job_payload = {
+        "time_matrix": np.array(request.time_matrix, dtype=float),
+        "distance_matrix": np.array(request.distance_matrix, dtype=float),
+        "node_ids": request.node_ids,
+        "demands": request.demands,
+        "vehicle_capacity": request.vehicle_capacity,
+        "num_vehicles": request.num_vehicles,
+        "depot_index": request.depot_index,
+    }
+    if request.num_particles is not None:
+        job_payload["num_particles"] = request.num_particles
+    if request.max_iterations is not None:
+        job_payload["max_iterations"] = request.max_iterations
+
+    background_tasks.add_task(
+        orchestrator.run_comparison, job_id, job_payload, request.seed, request.time_budget_s
+    )
+    return {"job_id": job_id}
 
 
 @router.post("/jobs/from-nodes", response_model=CreateJobResponse)

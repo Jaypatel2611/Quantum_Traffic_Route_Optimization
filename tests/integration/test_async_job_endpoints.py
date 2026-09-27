@@ -44,3 +44,18 @@ def test_stream_endpoint_returns_event_stream_content_type():
     job_id = response.json()["job_id"]
     with client.stream("GET", f"/jobs/{job_id}/stream") as stream_response:
         assert stream_response.headers["content-type"].startswith("text/event-stream")
+
+
+def test_malformed_matrix_returns_422_not_a_solver_crash():
+    """Real Pydantic validation (this endpoint's own former gap, closed
+    alongside /jobs/from-nodes's): a matrix that isn't actually a list of
+    lists must never reach the solver."""
+    payload = {**_PAYLOAD, "time_matrix": "not a matrix"}
+    response = client.post("/jobs", json=payload)
+    assert response.status_code == 422
+
+
+def test_non_positive_num_vehicles_returns_422():
+    payload = {**_PAYLOAD, "num_vehicles": 0}
+    response = client.post("/jobs", json=payload)
+    assert response.status_code == 422

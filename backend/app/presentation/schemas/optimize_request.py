@@ -16,6 +16,25 @@ class AccidentEdgeSchema(BaseModel):
     to_node_id: int
 
 
+class CreateJobRequest(BaseModel):
+    """Real, Pydantic-validated version of Phase 5's raw-matrix /jobs
+    contract -- for a caller that already has a pre-built distance/time
+    matrix (a verification script, not the Setup screen's city/CSV flow,
+    which goes through CreateJobFromNodesRequest below and never builds a
+    matrix client-side)."""
+    time_matrix: list[list[float]] = Field(min_length=2)
+    distance_matrix: list[list[float]] = Field(min_length=2)
+    node_ids: list[str] = Field(min_length=2)
+    demands: list[float]
+    vehicle_capacity: float = Field(gt=0)
+    num_vehicles: int = Field(gt=0)
+    seed: int
+    time_budget_s: float = Field(gt=0)
+    depot_index: int = 0
+    num_particles: int | None = Field(default=None, gt=0)
+    max_iterations: int | None = Field(default=None, gt=0)
+
+
 class CreateJobFromNodesRequest(BaseModel):
     city_id: str
     nodes: list[NodeSchema] = Field(min_length=2)

@@ -14,18 +14,92 @@ def rov_map(position: np.ndarray) -> np.ndarray:
     return np.argsort(position)
 
 
-def split_into_routes(permutation: np.ndarray, num_vehicles: int) -> list[list[int]]:
-    """Divides the giant tour into num_vehicles fixed, equal-ish contiguous
-    chunks (user-approved encoding, PRD Section 9's particle stays R^N with
-    no extra split-point genes)."""
+def split_into_routes(
+    permutation: np.ndarray,
+    num_vehicles: int,
+    time_matrix,
+    depot_index: int = 0,
+) -> list[list[int]]:
+    """Geography-aware split (Prins-style DP over the giant tour, PRD
+    Section 9's particle stays R^N with no extra split-point genes -- the
+    ROV permutation still fixes the *visiting order*; this only decides
+    *where* to cut that fixed order into at most num_vehicles routes,
+    minimizing total route time).
+
+    Replaces an earlier fixed-size equal-chunk split: a chunk boundary
+    picked by index alone could pair two geographically far-apart
+    customers into one vehicle's route purely because of where they landed
+    in the permutation. That barely showed at 4-5 customers (found via the
+    bigger demo-scenario verification, not a test) but produced routes
+    dramatically worse than OR-Tools's at 15-60 customers -- QPSO's own
+    fitness had converged, but the *routes* it converged to were bad
+    because the split, not the search, was geography-blind.
+
+    Capacity is deliberately NOT enforced here -- that stays
+    evaluate_fitness's soft penalty (Section 12), exactly as it was for the
+    old equal-chunk split; this function only ever decides where to cut a
+    fixed order, never whether a resulting route is feasible."""
     n = len(permutation)
-    base_size, remainder = divmod(n, num_vehicles)
-    routes = []
-    start = 0
-    for vehicle in range(num_vehicles):
-        size = base_size + (1 if vehicle < remainder else 0)
-        routes.append(permutation[start:start + size].tolist())
-        start += size
+    customers = permutation.astype(int)
+    cust_idx = customers + 1  # matrix index: depot occupies row/col 0
+
+    # arc_time[i][j] = round-trip time for the single route visiting
+    # customers[i:j] (0 <= i < j <= n): depot -> customers[i] -> ... ->
+    # customers[j-1] -> depot. This decomposes additively as A[i] + B[j-1]
+    # (depot-to-i and j-to-depot legs, plus the tour's own cumulative
+    # sequential travel time between them) -- a fully vectorized O(n)
+    # construction instead of an O(n^2) double loop, which mattered in
+    # practice: an O(n^2)-per-call, O(K*n^2)-DP split is cheap at 4-5
+    # customers but expensive enough at 60 to burn most of a particle's
+    # iteration budget, found by checking iterations_run/stopped_reason on
+    # the bigger demo scenario after the first (unvectorized) version of
+    # this fix quietly turned "more search time" into "less search time".
+    depot_to_cust = time_matrix[depot_index, cust_idx]
+    cust_to_depot = time_matrix[cust_idx, depot_index]
+    prefix = np.concatenate(([0.0], np.cumsum(time_matrix[cust_idx[:-1], cust_idx[1:]]))) if n > 1 else np.zeros(1)
+    a = depot_to_cust - prefix
+    b = prefix + cust_to_depot
+
+    # dp[j] = min total time to cover customers[:j] with the routes used so
+    # far. Because arc_time separates into a[i] + b[j-1], the classic
+    # O(n^2) transition dp[k][j] = min_i(dp[k-1][i] + arc_time[i][j])
+    # reduces to a running minimum of (dp[k-1][i] + a[i]) -- O(n) per
+    # vehicle layer instead of O(n^2), so the whole DP is O(num_vehicles * n).
+    inf = float("inf")
+    dp = np.full(n + 1, inf)
+    dp[0] = 0.0
+    parent: list[list[int]] = [[-1] * (n + 1) for _ in range(num_vehicles + 1)]
+    dp_at_n = [inf] * (num_vehicles + 1)
+
+    for k in range(1, num_vehicles + 1):
+        c = dp[:n] + a
+        best_val, best_idx = float(c[0]), 0
+        running_min = np.empty(n)
+        running_argmin = np.empty(n, dtype=int)
+        for i in range(n):
+            if c[i] <= best_val:
+                best_val, best_idx = float(c[i]), i
+            running_min[i] = best_val
+            running_argmin[i] = best_idx
+
+        new_dp = np.full(n + 1, inf)
+        new_dp[1:] = running_min + b
+        for j in range(1, n + 1):
+            parent[k][j] = int(running_argmin[j - 1])
+        dp_at_n[k] = new_dp[n]
+        dp = new_dp
+
+    best_k = min(range(1, num_vehicles + 1), key=lambda k: dp_at_n[k])
+
+    routes: list[list[int]] = []
+    j = n
+    for k in range(best_k, 0, -1):
+        i = parent[k][j]
+        routes.append(customers[i:j].tolist())
+        j = i
+    routes.reverse()
+    while len(routes) < num_vehicles:
+        routes.append([])
     return routes
 
 
@@ -151,7 +225,9 @@ def run_qpso(
         alpha = 1.0 - (1.0 - 0.5) * (iteration / max_iterations) ** k
         lam = lambda_min + (lambda_max - lambda_min) * (iteration / max_iterations) ** k
 
-        all_routes = [split_into_routes(rov_map(p), num_vehicles) for p in positions]
+        all_routes = [
+            split_into_routes(rov_map(p), num_vehicles, time_matrix, depot_index) for p in positions
+        ]
         all_distances = []
         all_times = []
         for routes in all_routes:
@@ -201,7 +277,7 @@ def run_qpso(
         sign = np.where(rng.random(size=(num_particles, n)) < 0.5, 1.0, -1.0)
         positions = attractor + sign * alpha * np.abs(mbest - positions) * np.log(1.0 / u)
 
-    best_routes = split_into_routes(rov_map(gbest_position), num_vehicles)
+    best_routes = split_into_routes(rov_map(gbest_position), num_vehicles, time_matrix, depot_index)
     meta = {
         "seed": seed,
         "convergence_history": convergence_history,

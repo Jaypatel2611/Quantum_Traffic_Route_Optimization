@@ -38,6 +38,15 @@ def route_emissions(route) -> CO2EmissionProfile:
     integration) -- Phase 1's matrices are aggregated point-to-point sums,
     not retained edge paths. Upgrade path: per-edge integration if
     distance_matrix_builder starts tracking the path."""
+    if route.total_distance_m == 0:
+        # An unused vehicle (0 distance, 0 time) drives nowhere and emits
+        # nothing -- without this guard, average_speed_kmh's 0/0 silently
+        # becomes NaN (matrix values are numpy floats, which divide to NaN
+        # rather than raising), and a NaN float serializes as JSON `null`,
+        # corrupting the whole CO2 payload. Found via the bigger
+        # demo-scenario verification once a real split started leaving
+        # vehicles unused, not a test.
+        return CO2EmissionProfile(total_kg=0.0, average_speed_kmh=0.0)
     distance_km = route.total_distance_m / 1000
     average_speed_kmh = distance_km / (route.total_time_s / 3600)
     total_kg = emission_factor_g_per_km(average_speed_kmh) * distance_km / 1000

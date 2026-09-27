@@ -77,6 +77,22 @@ def test_missing_node_field_returns_422_not_500():
     assert response.status_code == 422
 
 
+def test_wrong_type_for_vehicle_capacity_returns_422():
+    """Phase 7's real Pydantic schema rejects a type Phase 6's temporary
+    dict-based endpoint would have let through unchecked (until it crashed
+    deep inside the solver instead of at the request boundary)."""
+    payload = {**_NODES_PAYLOAD, "vehicle_capacity": "a lot"}
+    response = client.post("/jobs/from-nodes", json=payload)
+    assert response.status_code == 422
+
+
+def test_openapi_schema_documents_the_real_endpoints():
+    schema = client.get("/openapi.json").json()
+    assert "/jobs/from-nodes" in schema["paths"]
+    assert "/cities" in schema["paths"]
+    assert "/jobs/{job_id}/result" in schema["paths"]
+
+
 def test_from_nodes_job_builds_matrices_and_produces_a_comparable_result():
     """End-to-end: raw lat/lon nodes -> cached-graph matrix build -> both
     solvers -> a result payload the Results/Green Impact screens can render

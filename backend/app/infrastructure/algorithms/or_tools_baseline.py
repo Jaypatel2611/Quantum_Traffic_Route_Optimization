@@ -8,6 +8,7 @@ from app.domain.entities.route import Route
 # comparison with QPSO (Phase 3) is time-budget-matched, not RNG-state-matched,
 # on the OR-Tools side.
 SEED_CONFIGURABLE = False
+ORTOOLS_VERSION = "9.15.6755"  # pinned in backend/requirements.txt
 
 
 def solve_cvrp(
@@ -88,6 +89,7 @@ def solve_cvrp(
         "time_limit_s": time_limit_s,
         "first_solution_strategy": "PATH_CHEAPEST_ARC",
         "local_search_metaheuristic": "GUIDED_LOCAL_SEARCH",
+        "ortools_version": ORTOOLS_VERSION,
     }
     return routes, meta
 

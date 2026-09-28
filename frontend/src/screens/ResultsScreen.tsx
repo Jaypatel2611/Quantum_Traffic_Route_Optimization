@@ -1,3 +1,6 @@
+import { useEffect, useState } from 'react';
+import { fetchEdges } from '../api/client';
+import type { GraphEdge } from '../api/types';
 import { useAppActions, useAppState } from '../state/AppState';
 import { MapCanvas } from '../components/LazyMapCanvas';
 import { RouteComparisonTable } from '../components/RouteComparisonTable';
@@ -6,6 +9,14 @@ import { RouteLegend } from '../components/RouteLegend';
 export function ResultsScreen() {
   const { result, scenario } = useAppState();
   const { goTo } = useAppActions();
+  const [edges, setEdges] = useState<GraphEdge[]>([]);
+
+  // Real road network as map context, same as the Setup screen -- routes
+  // are drawn over real streets, not a blank canvas.
+  useEffect(() => {
+    if (!scenario?.cityId) return;
+    fetchEdges(scenario.cityId).then(setEdges).catch(() => setEdges([]));
+  }, [scenario?.cityId]);
 
   if (!scenario) return null;
 
@@ -36,6 +47,7 @@ export function ResultsScreen() {
       <MapCanvas
         nodes={scenario.nodes}
         heightPx={480}
+        edges={edges}
         routeLayers={[
           { routes: result.ortools.routes, color: [46, 107, 230], dashed: false },
           { routes: result.qpso.routes, color: [232, 135, 30], dashed: true },

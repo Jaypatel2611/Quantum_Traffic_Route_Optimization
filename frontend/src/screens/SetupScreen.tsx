@@ -81,14 +81,17 @@ export function SetupScreen() {
       .catch(() => setCsvError('Could not reach backend for the city list.'));
   }, []);
 
+  // Real road network is always visible as map context (not just during
+  // accident picking) -- fetch it as soon as a city is known.
+  useEffect(() => {
+    if (!cityId) return;
+    fetchEdges(cityId)
+      .then(setEdges)
+      .catch(() => setEdgesError('Could not load road segments for this city.'));
+  }, [cityId]);
+
   function handleToggleAccidentMode() {
-    const next = !accidentMode;
-    setAccidentMode(next);
-    if (next && edges.length === 0 && cityId) {
-      fetchEdges(cityId)
-        .then(setEdges)
-        .catch(() => setEdgesError('Could not load road segments for this city.'));
-    }
+    setAccidentMode((prev) => !prev);
   }
 
   function handleEdgeClick(edge: GraphEdge) {
@@ -269,7 +272,7 @@ export function SetupScreen() {
         <MapCanvas
           nodes={nodes}
           heightPx={560}
-          edges={accidentMode ? edges : []}
+          edges={edges}
           selectedEdgeId={accidentEdge ? edgeIdFor(accidentEdge.fromNodeId, accidentEdge.toNodeId) : null}
           onEdgeClick={accidentMode ? handleEdgeClick : undefined}
         />

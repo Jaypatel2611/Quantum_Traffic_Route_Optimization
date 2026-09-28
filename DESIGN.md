@@ -113,6 +113,9 @@ The palette is small and role-locked: two identity colors, one eco color, one wa
 ### Secondary
 - **Eco Green** (`#2fbf71`, `{colors.accent-eco}`): reserved for CO2/fuel/time-saved positive figures on the Green Impact screen only (also doubles as `--status-live` for a genuinely live/streaming indicator, a distinct meaning from "eco," not a repurposing of it into generic UI accent).
 
+### Node Identity
+- **Node Identity Palette** (10 hand-picked hues × 2 lightness steps, `frontend/src/utils/nodeColor.ts`): every non-depot delivery node gets a deterministic color hashed from its id — the same node is the same color on the Setup map and the Results map, so a judge or fleet manager can visually track one specific delivery point across screens. This is identity encoding, not decoration: it answers "which node is this," a different question from the route colors' "which algorithm." The 10 hues are hand-picked to stay clear of `--route-classical` (blue, ~221°), `--route-quantum` (amber, ~30°), `--accent-eco` (green, ~152°), and the brief's rejected purple/violet band (~260–300°) — never draw a node-identity color from those ranges. The depot node stays `--text-primary` white, unchanged, since it isn't a "which node" question. This is a scoped exception to Brand Commitments' "avoid decorative rainbow color use": the exception applies only to per-node identity dots, and only because each color is a stable, meaningful pointer back to one node, never assigned arbitrarily or reused as chrome.
+
 ### Neutral
 - **Canvas** (`#12161c`, `{colors.bg-canvas}`): page background, the darkest step.
 - **Surface** (`#1b212b`, `{colors.bg-surface}`): the default card/tile/panel background, one lightness step up from canvas.
@@ -153,6 +156,8 @@ Density over illustration: every screen is a working panel, never an empty/marke
 - **Stacked-panel** (Live Run, Results, Green Impact): a single `padding: var(--space-6)` column, `flex-direction: column`, `gap: var(--space-4)` to `var(--space-6)` between major blocks (title row → chart/map → stat/status row → comparison detail → primary CTA).
 
 Spacing is strictly 4px-based (`--space-1` 4px through `--space-16` 64px); screen padding is always `--space-6` (24px), inter-block gaps are `--space-4`–`--space-6`, and tight internal gaps (label-to-input, icon-to-label) are `--space-2`.
+
+**The Real-Roads-Always-On Rule.** Every MapCanvas instance (Setup, Results) fetches and draws the city's real road-edge network as a neutral background layer (`--border-subtle`, 1.5px, no click handler outside accident-pick mode) as soon as a city is known — routes and nodes are never plotted against a blank canvas. Previously the road network only appeared while picking an accident edge; both maps now always show it, since a blank canvas with floating dots reads as unfinished, and route lines only make sense laid over the streets they actually follow.
 
 ### Named Rules
 **The Sticky-CTA Rule.** A screen's one primary action button (Run Optimization, View Results, View Green Impact) sits in a `position: sticky; bottom: 0` footer with a `--border-subtle` top rule and `--bg-canvas` background, so it stays reachable without scroll regardless of column content length — the fix for a finish-review finding that a CTA could go off-viewport on a long panel; keep any new primary CTA sticky, don't rely on natural document flow.

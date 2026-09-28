@@ -4,6 +4,7 @@ import { PathLayer, ScatterplotLayer } from '@deck.gl/layers';
 import { PathStyleExtension } from '@deck.gl/extensions';
 import { useMemo } from 'react';
 import type { GraphEdge, Route, ScenarioNode } from '../api/types';
+import { colorForNode } from '../utils/nodeColor';
 
 export interface MapRouteLayer {
   routes: Route[];
@@ -101,8 +102,11 @@ export function MapCanvas({
     id: 'nodes',
     data: nodes.map((n) => ({ ...n, position: positions.get(n.id) ?? [0, 0] })),
     getPosition: (d) => d.position,
-    getRadius: (d) => (d.id === 'depot' ? 10 : 6),
-    getFillColor: (d) => (d.id === 'depot' ? [237, 239, 242] : [154, 165, 177]),
+    getRadius: (d) => (d.id === 'depot' ? 10 : 7),
+    getFillColor: (d) => (d.id === 'depot' ? [237, 239, 242] : colorForNode(d.id)),
+    getLineColor: (d) => (d.id === 'depot' ? [237, 239, 242] : [18, 22, 28]),
+    lineWidthMinPixels: 1,
+    stroked: true,
     radiusUnits: 'pixels',
     pickable: false,
   });

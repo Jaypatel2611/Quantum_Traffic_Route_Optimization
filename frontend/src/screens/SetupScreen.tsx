@@ -97,8 +97,15 @@ export function SetupScreen() {
 
   const canRun = cityId !== '' && nodes.length >= 2 && !submitting;
 
+  const MAX_CSV_BYTES = 5 * 1024 * 1024; // PRD Section 17
+
   async function handleFile(file: File) {
     setCsvError(null);
+    if (file.size > MAX_CSV_BYTES) {
+      setNodes([]);
+      setCsvError('CSV exceeds 5 MB limit.');
+      return;
+    }
     try {
       const text = await file.text();
       setNodes(parseNodesCsv(text));

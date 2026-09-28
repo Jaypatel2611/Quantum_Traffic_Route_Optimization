@@ -142,6 +142,15 @@ export function MapCanvas({
         layers={[...edgeLayers, ...routePathLayers, nodeLayer]}
         getCursor={({ isHovering }) => (onEdgeClick && isHovering ? 'pointer' : 'grab')}
       />
+      <span
+        className="text-caption"
+        style={{
+          position: 'absolute', bottom: 4, right: 8,
+          color: 'var(--text-secondary, #9aa5b1)', pointerEvents: 'none',
+        }}
+      >
+        © OpenStreetMap contributors
+      </span>
     </div>
   );
 }

@@ -54,6 +54,13 @@ class CreateJobRequest(ForbidExtraModel):
         for name, matrix in (("time_matrix", self.time_matrix), ("distance_matrix", self.distance_matrix)):
             if len(matrix) != n or any(len(row) != n for row in matrix):
                 raise ValueError(f"{name} must be a square {n}x{n} matrix matching node_ids")
+        total_demand = sum(self.demands)
+        fleet_capacity = self.vehicle_capacity * self.num_vehicles
+        if total_demand > fleet_capacity:
+            raise ValueError(
+                f"total demand {total_demand} exceeds fleet capacity {fleet_capacity} "
+                f"(vehicle_capacity={self.vehicle_capacity} * num_vehicles={self.num_vehicles})"
+            )
         return self
 
 
@@ -74,4 +81,11 @@ class CreateJobFromNodesRequest(ForbidExtraModel):
     def _depot_index_in_range(self) -> "CreateJobFromNodesRequest":
         if not 0 <= self.depot_index < len(self.nodes):
             raise ValueError("depot_index out of range for nodes")
+        total_demand = sum(n.demand for n in self.nodes)
+        fleet_capacity = self.vehicle_capacity * self.num_vehicles
+        if total_demand > fleet_capacity:
+            raise ValueError(
+                f"total demand {total_demand} exceeds fleet capacity {fleet_capacity} "
+                f"(vehicle_capacity={self.vehicle_capacity} * num_vehicles={self.num_vehicles})"
+            )
         return self

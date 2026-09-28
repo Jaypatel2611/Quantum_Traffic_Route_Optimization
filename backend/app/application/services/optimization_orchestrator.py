@@ -1,9 +1,12 @@
 import asyncio
+import logging
 from concurrent.futures import ProcessPoolExecutor
 from multiprocessing import Manager
 
 from app.infrastructure.algorithms.or_tools_baseline import run_ortools_job
 from app.infrastructure.algorithms.qpso_solver import run_qpso_job
+
+logger = logging.getLogger(__name__)
 
 
 class OptimizationOrchestrator:
@@ -39,5 +42,6 @@ class OptimizationOrchestrator:
             )
             ortools_result, qpso_result = await asyncio.gather(ortools_future, qpso_future)
             self.job_results[job_id] = {"status": "done", "ortools": ortools_result, "qpso": qpso_result}
-        except Exception as exc:
-            self.job_results[job_id] = {"status": "error", "detail": str(exc)}
+        except Exception:
+            logger.exception("Solver job %s failed", job_id)
+            self.job_results[job_id] = {"status": "error", "detail": "Solver failed. Check server logs for details."}

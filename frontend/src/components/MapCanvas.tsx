@@ -127,6 +127,7 @@ export function MapCanvas({
   return (
     <div
       key={nodes.map((n) => n.id).join(',')}
+      onDragStart={(e) => e.preventDefault()}
       style={{
         position: 'relative',
         height: heightPx,

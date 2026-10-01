@@ -289,17 +289,18 @@ Real, honest result: the polish clearly helps at 60-node scale (more routes to r
 **What triggered this:** looking at the Results screen, the OR-Tools and QPSO routes were straight lines between stops, cutting across blocks where no road exists. The km / minutes / CO2 figures were always road-based (Dijkstra over the OSM graph), so the picture contradicted the table. Cause: `MapCanvas.tsx` drew `node_sequence` (stops only) point to point, and `build_distance_time_matrix` kept only each path's length and time, never the path itself. The straight-line rendering was a deliberate Phase 6 simplification ("line-only routes"), not a solver bug.
 
 **What was built:**
-- `distance_matrix_builder.py`: the stop-snapping step was extracted into `_snap_to_graph_nodes` (shared, so the matrix and the geometry cannot snap differently). New `build_route_geometries` returns one `[lat, lon]` polyline per route: for each consecutive stop pair, the `length`-weighted shortest path, the same metric the distance matrix used. Each leg starts and ends at the stop's own coordinates so the line meets the map dot. Legs are cached per (from, to) pair within a call.
-- `GeospatialRepositoryPort` / `CachedGraphRepository`: new `route_geometries(city_id, nodes, sequences)`.
+- `distance_matrix_builder.py`: the stop-snapping step was extracted into `_snap_to_graph_nodes` (shared, so the matrix and the geometry cannot snap differently). New `build_route_geometries` returns one `[lat, lon]` polyline per route: for each consecutive stop pair, the fastest (`travel_time`-weighted) path, i.e. the road the reported time came from. Each leg starts and ends at the stop's own coordinates so the line meets the map dot. Legs are cached per (from, to) pair within a call.
+- `GeospatialRepositoryPort` / `CachedGraphRepository`: new `route_geometries(city_id, nodes, sequences, accident_edge=None)`. The accident-multiplier graph copy is now a shared `_load_with_accident`, used by both `build_matrices` and `route_geometries`, so the drawn path and the solver's matrices see the same blocked road.
 - `optimize_router.py`: `/jobs/from-nodes` remembers `(city_id, nodes)` per job; `GET /jobs/{id}/result` attaches `geometry` to every route of both solvers. Raw-matrix `/jobs` has no city, so those routes get no geometry.
 - `RouteResponse.geometry` (optional) and the TypeScript `Route.geometry?`.
-- `MapCanvas.tsx`: draws `geometry` when present, falls back to straight stop-to-stop lines when absent.
+- `MapCanvas.tsx`: draws `geometry` when present, falls back to straight stop-to-stop lines when absent. `ResultsScreen.tsx` highlights the blocked segment (red dashed) when the job had an accident.
 
 **Honest limits:**
-- The drawn path is the shortest-by-length route. The solver's cost mixes time (with injected stochastic delay) and distance, and an accident multiplies `travel_time` only, so an accident does not reroute the drawn line. The reported distance matches the drawn path; the reported time includes delay the drawing does not show.
+- Accident detours are now drawn: legs use the accident-modified graph's fastest path, so a blocked road (x5 time) is routed around where an alternative exists. The injected random stochastic delay (log-normal, per matrix cell) still cannot be drawn.
+- Distance and time come from two different shortest paths (by length vs by time). The reported km is the shortest-by-length path's length; the drawn line is the fastest path, so its true length can be slightly above the km figure. Unifying them (distance = length of the fastest path) would change the benchmarked numbers and was not done.
 - Polylines join graph junctions with straight segments (the grey network is drawn the same way), so very curved roads look slightly angular. OSM edge `geometry` curves are not used.
 - Where OR-Tools and QPSO share a road, the dashed orange line sits over the solid blue one.
 - Geometry is computed on each `/result` call and the per-job scenario dict is in memory, like the accident-edge dict. Fine for one demo process, not for multi-instance deployment.
 
-**Verification:** new unit test `test_route_geometry_follows_graph_junctions_not_a_straight_line` (the route must pass through the only connecting junction and start/end at the stops); full suite 100 passed; `tsc -b` clean.
+**Verification:** new unit tests `test_route_geometry_follows_graph_junctions_not_a_straight_line` (route passes through the only connecting junction, starts/ends at the stops) and `test_route_geometry_detours_around_accident_edge` (blocking the fast road flips the path to the alternative); full suite 101 passed; `tsc -b` clean.
 

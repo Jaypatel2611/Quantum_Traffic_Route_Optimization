@@ -155,7 +155,13 @@ async def get_job_result(
     if scenario is not None:
         city_id, nodes = scenario
         both = ortools_payload["routes"] + qpso_payload["routes"]
-        geometries = repository.route_geometries(city_id, nodes, [r["node_sequence"] for r in both])
+        accident = _accident_edges.get(job_id)
+        geometries = repository.route_geometries(
+            city_id,
+            nodes,
+            [r["node_sequence"] for r in both],
+            accident_edge=(accident["from_node_id"], accident["to_node_id"]) if accident else None,
+        )
         for route, geometry in zip(both, geometries):
             route["geometry"] = geometry
 

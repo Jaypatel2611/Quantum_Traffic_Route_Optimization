@@ -48,6 +48,11 @@ export function ResultsScreen() {
         nodes={scenario.nodes}
         heightPx={480}
         edges={edges}
+        selectedEdgeId={
+          result.accident_edge
+            ? `${Math.min(result.accident_edge.from_node_id, result.accident_edge.to_node_id)}_${Math.max(result.accident_edge.from_node_id, result.accident_edge.to_node_id)}`
+            : null
+        }
         routeLayers={[
           { routes: result.ortools.routes, color: [46, 107, 230], dashed: false },
           { routes: result.qpso.routes, color: [232, 135, 30], dashed: true },

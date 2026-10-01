@@ -65,9 +65,7 @@ class CachedGraphRepository:
             })
         return edges
 
-    def build_matrices(
-        self, city_id: str, nodes: list[Node], accident_edge: tuple[int, int] | None = None
-    ) -> tuple[np.ndarray, np.ndarray]:
+    def _load_with_accident(self, city_id: str, accident_edge: tuple[int, int] | None):
         graph = self._load(city_id)
         if accident_edge is not None:
             graph = graph.copy()
@@ -75,9 +73,18 @@ class CachedGraphRepository:
             for u, v, data in graph.edges(data=True):
                 if frozenset((u, v)) == pair:
                     data["travel_time"] *= ACCIDENT_DELAY_MULTIPLIER
-        return build_distance_time_matrix(graph, nodes)
+        return graph
+
+    def build_matrices(
+        self, city_id: str, nodes: list[Node], accident_edge: tuple[int, int] | None = None
+    ) -> tuple[np.ndarray, np.ndarray]:
+        return build_distance_time_matrix(self._load_with_accident(city_id, accident_edge), nodes)
 
     def route_geometries(
-        self, city_id: str, nodes: list[Node], sequences: list[list[str]]
+        self,
+        city_id: str,
+        nodes: list[Node],
+        sequences: list[list[str]],
+        accident_edge: tuple[int, int] | None = None,
     ) -> list[list[list[float]]]:
-        return build_route_geometries(self._load(city_id), nodes, sequences)
+        return build_route_geometries(self._load_with_accident(city_id, accident_edge), nodes, sequences)

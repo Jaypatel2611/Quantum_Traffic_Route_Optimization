@@ -33,10 +33,15 @@ class GeospatialRepositoryPort(Protocol):
         ...
 
     def route_geometries(
-        self, city_id: str, nodes: list[Node], sequences: list[list[str]]
+        self,
+        city_id: str,
+        nodes: list[Node],
+        sequences: list[list[str]],
+        accident_edge: tuple[int, int] | None = None,
     ) -> list[list[list[float]]]:
         """Returns one road-following [[lat, lon], ...] polyline per node-id
-        sequence -- the shortest road path between each consecutive pair of
-        stops, for drawing routes on the map. Raises UnknownCityError for an
+        sequence -- the fastest road path between each consecutive pair of
+        stops, for drawing routes on the map. accident_edge (same meaning as
+        build_matrices) makes the paths detour around the blocked segment. Raises UnknownCityError for an
         unrecognized city_id."""
         ...

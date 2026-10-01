@@ -57,3 +57,25 @@ def test_route_geometry_follows_graph_junctions_not_a_straight_line():
     assert [12.91, 77.61] in geometry
     assert geometry[0] == [12.90, 77.60]
     assert geometry[-1] == [12.92, 77.62]
+
+
+def test_route_geometry_detours_around_accident_edge():
+    """Two parallel roads 1->3: via junction 2 (fast) or via junction 4 (slower). Blocking 1-2 (x5 time) flips the path to 4."""
+    g = nx.MultiDiGraph()
+    for nid, y, x in [(1, 12.90, 77.60), (2, 12.91, 77.61), (3, 12.92, 77.62), (4, 12.93, 77.60)]:
+        g.add_node(nid, y=y, x=x)
+    g.add_edge(1, 2, length=500, travel_time=60)
+    g.add_edge(2, 3, length=500, travel_time=60)
+    g.add_edge(1, 4, length=600, travel_time=100)
+    g.add_edge(4, 3, length=600, travel_time=100)
+    g.graph["crs"] = "epsg:4326"
+    nodes = [
+        Node(id="n1", coordinates=GeographicCoordinates(lat=12.90, lon=77.60)),
+        Node(id="n3", coordinates=GeographicCoordinates(lat=12.92, lon=77.62)),
+    ]
+    [free] = build_route_geometries(g, nodes, [["n1", "n3"]])
+    g[1][2][0]["travel_time"] *= 5
+    [blocked] = build_route_geometries(g, nodes, [["n1", "n3"]])
+    assert [12.91, 77.61] in free and [12.93, 77.60] not in free
+    assert [12.93, 77.60] in blocked and [12.91, 77.61] not in blocked
+

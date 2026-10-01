@@ -46,8 +46,10 @@ def build_route_geometries(
     graph: nx.MultiDiGraph, nodes: list[Node], sequences: list[list[str]]
 ) -> list[list[list[float]]]:
     """Road-following [lat, lon] polyline for each route's node-id sequence.
-    Each leg is the same length-weighted shortest path build_distance_time_matrix
-    measured, so the drawn line is the route the reported distance came from.
+    Each leg is the fastest (travel_time-weighted) path, i.e. the road the
+    reported time came from. Pass the accident-modified graph and a blocked
+    road's x5 time makes the line visibly detour around it. (The distance
+    matrix uses the shortest-by-length path, which can be a different road.)
     Each leg starts and ends at the stop's own coordinates so the line meets
     the map dots rather than the nearest graph junction."""
     index = {n.id: i for i, n in enumerate(nodes)}
@@ -56,7 +58,7 @@ def build_route_geometries(
 
     def leg(a: int, b: int) -> list[list[float]]:
         if (a, b) not in legs:
-            junctions = nx.shortest_path(graph, graph_ids[a], graph_ids[b], weight="length")
+            junctions = nx.shortest_path(graph, graph_ids[a], graph_ids[b], weight="travel_time")
             points = [[nodes[a].coordinates.lat, nodes[a].coordinates.lon]]
             points += [[round(graph.nodes[j]["y"], 6), round(graph.nodes[j]["x"], 6)] for j in junctions]
             points.append([nodes[b].coordinates.lat, nodes[b].coordinates.lon])

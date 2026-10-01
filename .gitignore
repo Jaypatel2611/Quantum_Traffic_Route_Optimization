@@ -5,5 +5,5 @@ node_modules/
 dist/
 .claude/
 backend/cache/
-.pptx
-.pdf
+*.pptx
+*.pdf

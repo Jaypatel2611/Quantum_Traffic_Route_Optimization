@@ -101,7 +101,7 @@ export function ResultsScreen() {
         nodeNotes={nodeNotes}
         routeLayers={[
           { routes: shown.ortools.map((e) => e.route), colors: shown.ortools.map((e) => e.color), color: [46, 107, 230], dashed: false },
-          { routes: shown.qpso.map((e) => e.route), colors: shown.qpso.map((e) => e.color), color: [232, 135, 30], dashed: true },
+          { routes: shown.qpso.map((e) => e.route), colors: shown.qpso.map((e) => e.color), color: [232, 135, 30], dashed: true, offset: 1 },
         ]}
       />
 

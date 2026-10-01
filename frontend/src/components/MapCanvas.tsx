@@ -12,6 +12,9 @@ export interface MapRouteLayer {
   color: [number, number, number];
   colors?: [number, number, number][];
   dashed: boolean;
+  /** Sideways shift in line widths (right of travel direction when positive), so
+   * two solvers sharing a road draw side by side instead of one hiding the other. */
+  offset?: number;
 }
 
 interface HoveredNode {
@@ -164,8 +167,9 @@ export function MapCanvas({
         getWidth: 3,
         widthUnits: 'pixels',
         getDashArray: layer.dashed ? [6, 4] : [1, 0],
+        getOffset: layer.offset ?? 0,
         dashJustified: true,
-        extensions: layer.dashed ? [new PathStyleExtension({ dash: true })] : [],
+        extensions: [new PathStyleExtension({ dash: layer.dashed, offset: true })],
       })
   );
 

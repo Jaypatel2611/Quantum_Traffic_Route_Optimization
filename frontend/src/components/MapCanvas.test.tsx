@@ -53,6 +53,29 @@ describe('MapCanvas accident styling', () => {
   });
 });
 
+describe('MapCanvas route layers', () => {
+  const route = { vehicle_id: 'v0', node_sequence: ['depot', 'n1', 'depot'], total_distance_m: 0, total_time_s: 0 };
+
+  it('offsets a layer sideways so two solvers sharing a road stay both visible', () => {
+    render(
+      <MapCanvas
+        nodes={nodes}
+        routeLayers={[
+          { routes: [route], color: [46, 107, 230], dashed: false },
+          { routes: [route], color: [232, 135, 30], dashed: true, offset: 1 },
+        ]}
+      />,
+    );
+    const solid = deckProps.layers.find((l) => l.id === 'routes-0')!;
+    const dashed = deckProps.layers.find((l) => l.id === 'routes-1')!;
+    expect(solid.props.getOffset).toBe(0);
+    expect(dashed.props.getOffset).toBe(1);
+    // the offset needs the extension's offset mode on, solid layers included
+    expect(solid.props.extensions[0].opts).toMatchObject({ offset: true, dash: false });
+    expect(dashed.props.extensions[0].opts).toMatchObject({ offset: true, dash: true });
+  });
+});
+
 describe('MapCanvas node hover', () => {
   const hover = (object: unknown) =>
     act(() => deckProps.onHover({ layer: object ? { id: 'nodes' } : null, object, x: 40, y: 50 }));

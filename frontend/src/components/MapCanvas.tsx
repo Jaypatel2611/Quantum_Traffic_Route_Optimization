@@ -63,10 +63,6 @@ export function MapCanvas({
   reroutedPaths = NO_PATHS, nodeNotes = NO_NOTES,
 }: MapCanvasProps) {
   const selectedSet = useMemo(() => new Set(selectedEdgeIds), [selectedEdgeIds]);
-  // deck.gl diffs updateTriggers shallowly, and two Sets always look equal
-  // (no own enumerable keys) -- so a Set trigger never refreshed the red
-  // accident styling. A string key changes whenever the selection does.
-  const selectionKey = selectedEdgeIds.join(',');
   const [hovered, setHovered] = useState<HoveredNode | null>(null);
   const { positions, viewState, lat0, lon0 } = useMemo(() => {
     if (nodes.length === 0) {
@@ -94,20 +90,33 @@ export function MapCanvas({
 
   const edgeLayers = useMemo(() => {
     if (edges.length === 0) return [];
-    const visible = new PathLayer({
+    const base = new PathLayer({
       id: 'graph-edges',
       data: edges,
       getPath: edgePath,
-      getColor: (e: GraphEdge) => (selectedSet.has(e.edgeId) ? [229, 72, 77] : [46, 55, 66]),
-      getWidth: (e: GraphEdge) => (selectedSet.has(e.edgeId) ? 5 : 1.5),
-      getDashArray: (e: GraphEdge) => (selectedSet.has(e.edgeId) ? [6, 4] : [1, 0]),
+      getColor: [46, 55, 66],
+      getWidth: 1.5,
+      widthUnits: 'pixels',
+      pickable: false,
+    });
+    // Accident roads are their own layer, drawn above the hover band, with the
+    // selected edges as *data* (not an accessor trigger): a newly picked road
+    // used to stay hidden under the hit area's yellow hover highlight until the
+    // pointer moved away.
+    const accidents = new PathLayer({
+      id: 'accident-edges',
+      data: edges.filter((e) => selectedSet.has(e.edgeId)),
+      getPath: edgePath,
+      getColor: [229, 72, 77],
+      getWidth: 5,
+      getDashArray: [6, 4],
       dashJustified: true,
       extensions: [new PathStyleExtension({ dash: true })],
       widthUnits: 'pixels',
       pickable: false,
-      updateTriggers: { getColor: selectionKey, getWidth: selectionKey, getDashArray: selectionKey },
+      parameters: { depthCompare: 'always' },
     });
-    if (!onEdgeClick) return [visible];
+    if (!onEdgeClick) return [base, accidents];
     // A 1.5px line is very hard to actually click -- a wide, effectively
     // invisible sibling layer gives it a real hit area without changing
     // what's drawn. Standard deck.gl pattern for thin-line picking.
@@ -123,8 +132,8 @@ export function MapCanvas({
       highlightColor: [242, 201, 76, 100],
       onClick: (info: { object?: GraphEdge }) => info.object && onEdgeClick(info.object),
     });
-    return [hitArea, visible];
-  }, [edges, lat0, lon0, selectedSet, selectionKey, onEdgeClick]);
+    return [hitArea, base, accidents];
+  }, [edges, lat0, lon0, selectedSet, onEdgeClick]);
 
   // The CSV's first row is the depot (node_ids[0], this codebase's convention),
   // whatever its id string is.

@@ -25,31 +25,30 @@ const edges: GraphEdge[] = [
   { edgeId: '3_4', fromNodeId: 3, toNodeId: 4, fromLat: 12.972, fromLon: 77.642, toLat: 12.973, toLon: 77.643 },
 ];
 
-const edgeLayer = () => deckProps.layers.find((l) => l.id === 'graph-edges')!;
+const layer = (id: string) => deckProps.layers.find((l) => l.id === id)!;
+const accidentIds = () => (layer('accident-edges').props.data as GraphEdge[]).map((e) => e.edgeId);
 
 describe('MapCanvas accident styling', () => {
-  it('re-triggers the red/dashed styling every time the selection changes', () => {
-    const { rerender } = render(<MapCanvas nodes={nodes} edges={edges} selectedEdgeIds={[]} />);
-    const none = edgeLayer().props.updateTriggers.getColor;
+  it('draws exactly the selected roads in a dedicated layer above the hover hit area', () => {
+    const { rerender } = render(<MapCanvas nodes={nodes} edges={edges} selectedEdgeIds={[]} onEdgeClick={() => {}} />);
+    expect(accidentIds()).toEqual([]);
 
-    rerender(<MapCanvas nodes={nodes} edges={edges} selectedEdgeIds={['1_2']} />);
-    const one = edgeLayer().props.updateTriggers.getColor;
-    rerender(<MapCanvas nodes={nodes} edges={edges} selectedEdgeIds={['1_2', '3_4']} />);
-    const two = edgeLayer().props.updateTriggers.getColor;
+    rerender(<MapCanvas nodes={nodes} edges={edges} selectedEdgeIds={['1_2']} onEdgeClick={() => {}} />);
+    expect(accidentIds()).toEqual(['1_2']);
+    rerender(<MapCanvas nodes={nodes} edges={edges} selectedEdgeIds={['1_2', '3_4']} onEdgeClick={() => {}} />);
+    expect(accidentIds()).toEqual(['1_2', '3_4']);
 
-    // deck.gl diffs trigger values shallowly: they must be primitives that differ
-    // (two Sets would always compare equal and never refresh the colors).
-    expect(typeof one).toBe('string');
-    expect(new Set([none, one, two]).size).toBe(3);
-    expect(edgeLayer().props.getColor(edges[0])).toEqual([229, 72, 77]);
-    expect(edgeLayer().props.getColor(edges[1])).toEqual([229, 72, 77]);
+    // Order is paint order: the hover highlight (hit area) must be underneath the accident lines.
+    const order = deckProps.layers.map((l) => l.id);
+    expect(order.indexOf('graph-edges-hit-area')).toBeLessThan(order.indexOf('accident-edges'));
+    expect(layer('accident-edges').props.getColor).toEqual([229, 72, 77]);
   });
 
-  it('removing an accident restores the normal road color', () => {
+  it('removing an accident takes it off the map; the base roads stay one neutral color', () => {
     const { rerender } = render(<MapCanvas nodes={nodes} edges={edges} selectedEdgeIds={['1_2', '3_4']} />);
     rerender(<MapCanvas nodes={nodes} edges={edges} selectedEdgeIds={['3_4']} />);
-    expect(edgeLayer().props.getColor(edges[0])).toEqual([46, 55, 66]);
-    expect(edgeLayer().props.getColor(edges[1])).toEqual([229, 72, 77]);
+    expect(accidentIds()).toEqual(['3_4']);
+    expect(layer('graph-edges').props.getColor).toEqual([46, 55, 66]);
   });
 });
 

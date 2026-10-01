@@ -335,7 +335,7 @@ Real, honest result: the polish clearly helps at 60-node scale (more routes to r
 **Verification:** backend 104 tests passing (new: multi-accident repository test, stops-sum-to-totals and multi-accident-reroute integration tests against the real solvers); frontend 20 vitest tests passing (CSV validation, nodes+demand display, add/remove/clear accidents, Back preserving state, route order and numbers in `RouteBreakdown`); `tsc -b` clean.
 
 **Limitations**
-- Not verified in a real browser this session (the backend was stopped by a low-memory event and was not restarted); hover tooltips and the map overlay are covered by types and component-level tests only, with the map stubbed out in jsdom.
+- ~~Not verified in a real browser~~ Verified in Chrome in the final browser pass below.
 - Going Back from Live Run while a job is running drops that run's result (the stream subscription ends); start it again from Setup.
 - ~~The `accident_edge` -> `accident_edges` rename breaks old callers~~ Fixed: `/jobs/from-nodes` still accepts the legacy single `accident_edge` and merges it into `accident_edges` (deduplicated); responses only ever carry `accident_edges`.
 - ~~A rerouted leg is flagged only if its road path changes; the solver can also reorder stops because of accidents, which shows up in the route chain, not the halo.~~ Fixed by the route-order comparison below.
@@ -374,4 +374,11 @@ The earlier "QPSO beats OR-Tools by 7.6% CO2 at 60 nodes" came from skipping cus
 | 60 nodes | 8 x 150 | 4.31 | 5.01 | 16.3% worse |
 
 QPSO ties on the smallest case and is behind OR-Tools everywhere else, most at 30 nodes. This replaces the retracted 60-node `+7.6%`. Any slide or script claiming a QPSO win over OR-Tools needs rewording (for example: "matches the classical baseline on small instances; the swarm's value here is the explainable search, not beating OR-Tools").
+
+### Final browser pass (Chrome, production build on :4173, backend on :8000)
+Exercised the whole flow against the real app. **Passed:** hover tooltip follows the cursor and shows id/demand/location; accident mode adds roads, each listed with Remove, and Remove / Clear all update the list and the map; Back is disabled and greyed ("Calculating…") during the run and enabled on completion; Results shows road-following routes, red dashed accident roads, the yellow rerouted halo, the legend, the accident banner, the vehicle selector (hiding a vehicle also hides its map line and its route table), per-vehicle route chains with tables, the accident impact panel and the route-order panel (baseline arrived without a manual refresh); Back to Setup keeps the 2 accidents, the 5 nodes, capacity and vehicle count.
+
+**Real bug found and fixed in this pass:** the previous accident-styling fix (string `updateTriggers`) was not enough in the browser. A newly picked road stayed hidden under the hit area's yellow hover highlight until the pointer left it, so selecting an accident still did not visibly turn the road red "dynamically". Accident roads are now their own deck.gl layer (selected edges as data, drawn above the hit area with depth test off) instead of an accessor on the base layer. Re-checked in Chrome: the red dashes show inside the hover band the moment the road is added. The unit tests now assert the dedicated layer, its data, and that the hit area is painted beneath it.
+
+**Notes from driving it with automation:** a click fired immediately after the pointer moves onto a road, or right after toggling accident mode, can be missed (the hit-area layer is created on toggle and picking needs a frame); with a short pause the click always registered, as it does for a real hand. Two same-tick programmatic clicks on vehicle chips act on the same prop snapshot, so the second overwrites the first; sequential human clicks are unaffected. Not exercised in the browser: CSV file upload (covered by unit tests) and the 30/60-node scenarios (covered by the benchmark script).
 

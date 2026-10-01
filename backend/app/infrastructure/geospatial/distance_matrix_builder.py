@@ -5,9 +5,7 @@ import osmnx as ox
 from app.domain.entities.node import Node
 
 
-def build_distance_time_matrix(graph: nx.MultiDiGraph, nodes: list[Node]) -> tuple[np.ndarray, np.ndarray]:
-    """Snaps each Node to its nearest routable edge, then computes the asymmetric
-    N×N shortest-path distance (meters) and time (seconds) matrices (PRD Section 10)."""
+def _snap_to_graph_nodes(graph: nx.MultiDiGraph, nodes: list[Node]) -> list:
     xs = [n.coordinates.lon for n in nodes]
     ys = [n.coordinates.lat for n in nodes]
     snapped_edges = ox.distance.nearest_edges(graph, xs, ys)
@@ -23,7 +21,13 @@ def build_distance_time_matrix(graph: nx.MultiDiGraph, nodes: list[Node]) -> tup
         u_dist = (graph.nodes[u]["x"] - x) ** 2 + (graph.nodes[u]["y"] - y) ** 2
         v_dist = (graph.nodes[v]["x"] - x) ** 2 + (graph.nodes[v]["y"] - y) ** 2
         graph_node_ids.append(u if u_dist <= v_dist else v)
+    return graph_node_ids
 
+
+def build_distance_time_matrix(graph: nx.MultiDiGraph, nodes: list[Node]) -> tuple[np.ndarray, np.ndarray]:
+    """Snaps each Node to its nearest routable edge, then computes the asymmetric
+    N×N shortest-path distance (meters) and time (seconds) matrices (PRD Section 10)."""
+    graph_node_ids = _snap_to_graph_nodes(graph, nodes)
     n = len(nodes)
     dist = np.zeros((n, n))
     time = np.zeros((n, n))
@@ -36,3 +40,33 @@ def build_distance_time_matrix(graph: nx.MultiDiGraph, nodes: list[Node]) -> tup
             dist[i, j] = lengths[target]
             time[i, j] = times[target]
     return dist, time
+
+
+def build_route_geometries(
+    graph: nx.MultiDiGraph, nodes: list[Node], sequences: list[list[str]]
+) -> list[list[list[float]]]:
+    """Road-following [lat, lon] polyline for each route's node-id sequence.
+    Each leg is the same length-weighted shortest path build_distance_time_matrix
+    measured, so the drawn line is the route the reported distance came from.
+    Each leg starts and ends at the stop's own coordinates so the line meets
+    the map dots rather than the nearest graph junction."""
+    index = {n.id: i for i, n in enumerate(nodes)}
+    graph_ids = _snap_to_graph_nodes(graph, nodes)
+    legs: dict[tuple[int, int], list[list[float]]] = {}
+
+    def leg(a: int, b: int) -> list[list[float]]:
+        if (a, b) not in legs:
+            junctions = nx.shortest_path(graph, graph_ids[a], graph_ids[b], weight="length")
+            points = [[nodes[a].coordinates.lat, nodes[a].coordinates.lon]]
+            points += [[round(graph.nodes[j]["y"], 6), round(graph.nodes[j]["x"], 6)] for j in junctions]
+            points.append([nodes[b].coordinates.lat, nodes[b].coordinates.lon])
+            legs[(a, b)] = points
+        return legs[(a, b)]
+
+    geometries = []
+    for sequence in sequences:
+        polyline: list[list[float]] = []
+        for a, b in zip(sequence, sequence[1:]):
+            polyline += leg(index[a], index[b])
+        geometries.append(polyline)
+    return geometries

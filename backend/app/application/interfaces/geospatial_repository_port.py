@@ -31,3 +31,12 @@ class GeospatialRepositoryPort(Protocol):
         translate it to a clean 404/422 without knowing this port's
         internals."""
         ...
+
+    def route_geometries(
+        self, city_id: str, nodes: list[Node], sequences: list[list[str]]
+    ) -> list[list[list[float]]]:
+        """Returns one road-following [[lat, lon], ...] polyline per node-id
+        sequence -- the shortest road path between each consecutive pair of
+        stops, for drawing routes on the map. Raises UnknownCityError for an
+        unrecognized city_id."""
+        ...

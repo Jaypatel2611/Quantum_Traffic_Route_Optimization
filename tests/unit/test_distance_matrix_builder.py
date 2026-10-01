@@ -7,7 +7,7 @@ import networkx as nx
 import numpy as np
 from app.domain.entities.node import Node
 from app.domain.value_objects.geographic_coordinates import GeographicCoordinates
-from app.infrastructure.geospatial.distance_matrix_builder import build_distance_time_matrix
+from app.infrastructure.geospatial.distance_matrix_builder import build_distance_time_matrix, build_route_geometries
 
 
 def _asymmetric_graph():
@@ -45,3 +45,15 @@ def test_diagonal_is_zero():
     dist, time = build_distance_time_matrix(_asymmetric_graph(), _nodes())
     assert np.all(np.diag(dist) == 0)
     assert np.all(np.diag(time) == 0)
+
+
+def test_route_geometry_follows_graph_junctions_not_a_straight_line():
+    """Route n1 -> n3 must pass through junction 2 (the only road), and start/end at the stops."""
+    nodes = [
+        Node(id="n1", coordinates=GeographicCoordinates(lat=12.90, lon=77.60)),
+        Node(id="n3", coordinates=GeographicCoordinates(lat=12.92, lon=77.62)),
+    ]
+    [geometry] = build_route_geometries(_asymmetric_graph(), nodes, [["n1", "n3"]])
+    assert [12.91, 77.61] in geometry
+    assert geometry[0] == [12.90, 77.60]
+    assert geometry[-1] == [12.92, 77.62]

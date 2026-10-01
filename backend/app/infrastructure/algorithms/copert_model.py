@@ -36,7 +36,7 @@ def emission_factor_g_per_km(speed_kmh: float) -> float:
 def route_emissions(route) -> CO2EmissionProfile:
     """ponytail: route-average-speed approximation (not per-edge EF(v)
     integration) -- Phase 1's matrices are aggregated point-to-point sums,
-    not retained edge paths. Upgrade path: per-edge integration if
+    not retained edge paths (route geometry is now built separately, see build_route_geometries). Upgrade path: per-edge integration if
     distance_matrix_builder starts tracking the path."""
     if route.total_distance_m == 0:
         # An unused vehicle (0 distance, 0 time) drives nowhere and emits

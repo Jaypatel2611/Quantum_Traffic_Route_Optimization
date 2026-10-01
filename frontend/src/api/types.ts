@@ -15,6 +15,8 @@ export interface Route {
   node_sequence: string[];
   total_distance_m: number;
   total_time_s: number;
+  /** Road-following [lat, lon] polyline; absent for raw-matrix jobs. */
+  geometry?: [number, number][];
 }
 
 export interface AlgorithmResult {

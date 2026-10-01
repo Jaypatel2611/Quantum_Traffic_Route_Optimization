@@ -28,10 +28,9 @@ const METERS_PER_DEG_LAT = 110_540;
 /** No basemap tiles (fully-offline constraint, PRD Section 2) -- nodes are
  * projected with a flat equirectangular approximation, accurate enough at
  * single-city scale, and plotted on a blank OrthographicView canvas.
- * Real road-snapped route geometry is not retained by the matrix pipeline
- * (see copert_model.py's own note on this); routes render as straight
- * depot-to-customer-to-depot lines, per the Design Brief's own
- * "line-only routes" assumption. */
+ * Routes follow the road network via the backend's per-route `geometry`
+ * polyline; a route without one (raw-matrix jobs) falls back to straight
+ * stop-to-stop lines. */
 function project(lat: number, lon: number, lat0: number, lon0: number): [number, number] {
   const metersPerDegLon = 111_320 * Math.cos((lat0 * Math.PI) / 180);
   return [(lon - lon0) * metersPerDegLon, -(lat - lat0) * METERS_PER_DEG_LAT];
@@ -116,7 +115,9 @@ export function MapCanvas({
       new PathLayer({
         id: `routes-${i}`,
         data: layer.routes.map((r) => ({
-          path: r.node_sequence.map((id) => positions.get(id) ?? [0, 0]),
+          path: r.geometry
+            ? r.geometry.map(([lat, lon]) => project(lat, lon, lat0, lon0))
+            : r.node_sequence.map((id) => positions.get(id) ?? [0, 0]),
         })),
         getPath: (d) => d.path,
         getColor: layer.color,

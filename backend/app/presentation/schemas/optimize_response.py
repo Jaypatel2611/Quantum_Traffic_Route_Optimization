@@ -30,6 +30,7 @@ class RouteResponse(BaseModel):
     node_sequence: list[str]
     total_distance_m: float
     total_time_s: float
+    geometry: list[list[float]] | None = None  # road-following [lat, lon] polyline
 
 
 class AlgorithmResultResponse(BaseModel):

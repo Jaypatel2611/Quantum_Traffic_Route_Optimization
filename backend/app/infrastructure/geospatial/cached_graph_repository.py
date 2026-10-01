@@ -4,7 +4,7 @@ import numpy as np
 
 from app.domain.entities.node import Node
 from app.domain.exceptions import UnknownCityError
-from app.infrastructure.geospatial.distance_matrix_builder import build_distance_time_matrix
+from app.infrastructure.geospatial.distance_matrix_builder import build_distance_time_matrix, build_route_geometries
 from app.infrastructure.geospatial.osmnx_client import load_cached_graph
 
 # Data-driven so a second cache_path entry is the only change needed to add
@@ -76,3 +76,8 @@ class CachedGraphRepository:
                 if frozenset((u, v)) == pair:
                     data["travel_time"] *= ACCIDENT_DELAY_MULTIPLIER
         return build_distance_time_matrix(graph, nodes)
+
+    def route_geometries(
+        self, city_id: str, nodes: list[Node], sequences: list[list[str]]
+    ) -> list[list[list[float]]]:
+        return build_route_geometries(self._load(city_id), nodes, sequences)

@@ -25,6 +25,11 @@ router = APIRouter()
 # here rather than added to OptimizationOrchestrator's own state.
 _accident_edges: dict[str, dict] = {}
 
+# job_id -> (city_id, nodes), for jobs created via /jobs/from-nodes -- lets
+# /result attach road-following geometry. Raw-matrix /jobs have no city, so
+# they get none and the map falls back to straight lines.
+_job_scenarios: dict[str, tuple[str, list[Node]]] = {}
+
 
 @router.post("/jobs", response_model=CreateJobResponse)
 async def create_job(
@@ -88,6 +93,7 @@ async def create_job_from_nodes(
     time_matrix = inject_stochastic_delay(base_time_matrix, rng, hour_of_day=request.hour_of_day)
 
     job_id = str(uuid.uuid4())
+    _job_scenarios[job_id] = (request.city_id, nodes)
     job_payload = {
         "time_matrix": time_matrix,
         "distance_matrix": distance_matrix,
@@ -124,7 +130,9 @@ async def stream_job(
 
 @router.get("/jobs/{job_id}/result", response_model=JobResultResponse)
 async def get_job_result(
-    job_id: str, orchestrator: OptimizationOrchestrator = Depends(get_orchestrator)
+    job_id: str,
+    orchestrator: OptimizationOrchestrator = Depends(get_orchestrator),
+    repository: GeospatialRepositoryPort = Depends(get_geospatial_repository),
 ) -> dict:
     result = orchestrator.job_results.get(job_id)
     if result is None:
@@ -142,6 +150,14 @@ async def get_job_result(
     qpso_payload = algorithm_result_payload(qpso_routes, result["qpso"]["meta"])
     ortools_payload["routes"] = _to_dicts(ortools_routes)
     qpso_payload["routes"] = _to_dicts(qpso_routes)
+
+    scenario = _job_scenarios.get(job_id)
+    if scenario is not None:
+        city_id, nodes = scenario
+        both = ortools_payload["routes"] + qpso_payload["routes"]
+        geometries = repository.route_geometries(city_id, nodes, [r["node_sequence"] for r in both])
+        for route, geometry in zip(both, geometries):
+            route["geometry"] = geometry
 
     return {
         "status": "done",

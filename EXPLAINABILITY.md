@@ -266,6 +266,8 @@ Real, measured, roughly-halved improvement — but **QPSO still does not beat OR
 
 **Also removed as genuinely dead code:** `backend/app/domain/entities/vehicle.py` (a `Vehicle` dataclass with zero imports anywhere in the backend — superseded early on by the primitive `demands`/`vehicle_capacity` fields used throughout the solver/API) and its orphaned test `tests/unit/test_vehicle.py`, confirmed via a full-repo dead-code audit (only high-confidence finding out of that pass; everything else audited — large files, `SolverPort` Protocol, `requirements.txt` entries — was judged legitimate/cohesive and left alone).
 
+> **CORRECTION (see "QPSO polish bug" at the end of this file): the table below was produced by a QPSO that returned invalid tours. Its 60-node `+7.6%` is retracted.**
+
 **Relocate-and-swap polish, now actually benchmarked:** manual UI testing surfaced a negative Green Impact number on a real 15-node upload, prompting a re-run of Phase 6.5's benchmark methodology (`backend/scripts/verify_bigger_scenario.py`, seed 42, real cached-graph nodes) with the relocate-and-swap polish in place:
 
 | Scenario | QPSO vs OR-Tools CO2 delta |
@@ -336,10 +338,26 @@ Real, honest result: the polish clearly helps at 60-node scale (more routes to r
 - Not verified in a real browser this session (the backend was stopped by a low-memory event and was not restarted); hover tooltips and the map overlay are covered by types and component-level tests only, with the map stubbed out in jsdom.
 - Going Back from Live Run while a job is running drops that run's result (the stream subscription ends); start it again from Setup.
 - ~~The `accident_edge` -> `accident_edges` rename breaks old callers~~ Fixed: `/jobs/from-nodes` still accepts the legacy single `accident_edge` and merges it into `accident_edges` (deduplicated); responses only ever carry `accident_edges`.
-- A rerouted leg is flagged only if its road path changes; the solver can also reorder stops because of accidents, which shows up in the route chain, not the halo.
+- ~~A rerouted leg is flagged only if its road path changes; the solver can also reorder stops because of accidents, which shows up in the route chain, not the halo.~~ Fixed by the route-order comparison below.
 - Accidents are road segments (existing system), not nodes.
 - ~~An accident on a segment with no alternative looks like it did nothing~~ Fixed by the Accident impact panel below.
 
 ### Accident impact panel
 Each accident is now reported per solver as `not_on_route` (no leg's fastest free path uses the road: no effect), `rerouted` (legs used it for free but now drive around it, with the extra time) or `driven_through` (no cheaper way around, so legs still use it, slowed). `build_accident_impacts` judges against the solver's final stop order. `added_time_s` is that accident's own base road-time cost over the legs it crosses (computed with only that accident applied); the random log-normal traffic delay is applied to the whole matrix and is not attributed per road. Status uses the real combined situation: an accident that is avoidable alone becomes `driven_through` if another accident blocks the detour. If the solver reorders stops to avoid an accident entirely, the final order no longer crosses it, so it reads `not_on_route`. Tests: three builder cases (rerouted with exact extra time, driven through, off-route) plus the combined-accidents case, an integration check on the live `/result` payload, and the panel's rendering; backend 111, frontend 32 tests passing.
+
+### Route-order comparison (accident-free baseline)
+When accidents are injected, each solver is also run on the accident-free matrices (same seed, same budget, same random delay factors) after the main result, so the main run is never slowed or contended. `/result` reports `route_changes_status` (`none | pending | ready | unavailable`) and, per solver, `route_changes`: whether the stop order changed, the no-accident order, what that order would cost under the accidents, what the chosen order costs, and the saving. The Results page shows "Effect on route order" and refreshes every 2 s while the baseline is pending. A baseline failure never fails the job (`unavailable`). Costs: jobs with accidents take about two time budgets of solver CPU in total, though the user waits for only the first; a new job started while a baseline is still solving queues behind it. Because both solvers are time-limited, "changed" can occasionally be search noise, which is why the saving under the accident matrix, not the changed flag alone, is what the UI treats as a gain.
+
+### QPSO polish bug (found while validating the route-order work) -- invalid tours, headline benchmark retracted
+`relocate_and_swap_polish` iterated snapshots of the route lists; after a successful swap the inner loops kept using the pre-swap customer ids, so a later "swap" could copy one customer into a route twice and drop another -- which makes the tour look cheaper, so the move was accepted. Found when a multi-accident run returned `['depot', 'n4', 'n4', 'n3', 'depot']` and no `n1`. Fixed with stale-id guards; regression test `test_polish_never_duplicates_or_drops_a_customer` (300 random seeds, fails on the old code).
+
+**Impact on reported results:** re-running the 60-node scenario (`indiranagar_60.csv`, seed 42, 15 s, capacity 150, 8 vehicles) with the old and fixed solver on identical matrices:
+
+| Solver | Valid tour | Customers visited | CO2 (kg) | Time (min) |
+|---|---|---|---|---|
+| OR-Tools | yes | 60/60 | 4.28 | 40.8 |
+| QPSO (old, buggy) | **no** | 52/60 (12 duplicate visits) | 3.94 | 37.9 |
+| QPSO (fixed) | yes | 60/60 | 4.92 | 47.0 |
+
+The earlier "QPSO beats OR-Tools by 7.6% CO2 at 60 nodes" came from skipping customers, not from better routing. With a valid tour QPSO is about 15% worse than OR-Tools on this scenario. The 5-node (tie) and 15-node (-7.1%) figures were not re-measured here and may also have been affected. Anything quoting a QPSO win (PPT, demo script, Green Impact framing) needs re-checking against the fixed solver.
 

@@ -253,7 +253,8 @@ def test_multiple_accidents_are_echoed_and_flag_rerouted_legs():
     payload = {**_NODES_PAYLOAD, "accident_edges": [
         {"from_node_id": e["from_node_id"], "to_node_id": e["to_node_id"]} for e in blocked
     ]}
-    result = _wait_done(client.post("/jobs/from-nodes", json=payload).json()["job_id"])
+    result_job_id = client.post("/jobs/from-nodes", json=payload).json()["job_id"]
+    result = _wait_done(result_job_id)
 
     assert result["accident_edges"] == payload["accident_edges"]
     for algo in ("ortools", "qpso"):
@@ -269,3 +270,22 @@ def test_multiple_accidents_are_echoed_and_flag_rerouted_legs():
         assert all(i["added_time_s"] >= 0 for i in impacts)
         assert all((i["added_time_s"] == 0) == (i["status"] == "not_on_route") for i in impacts)
     assert free["ortools"]["accident_impacts"] == []  # nothing injected, nothing to report
+    assert free["route_changes_status"] == "none" and free["ortools"]["route_changes"] is None
+
+    # The accident-free baseline solves after the main result; wait for it.
+    job_id = result_job_id
+    deadline = time.monotonic() + 40.0
+    while result["route_changes_status"] == "pending" and time.monotonic() < deadline:
+        time.sleep(0.5)
+        result = client.get(f"/jobs/{job_id}/result").json()
+    assert result["route_changes_status"] == "ready"
+    for algo in ("ortools", "qpso"):
+        changes = result[algo]["route_changes"]
+        assert isinstance(changes["changed"], bool)
+        assert changes["actual_time_s"] == pytest.approx(result[algo]["total_time_s"])
+        assert changes["saved_time_s"] == pytest.approx(
+            changes["baseline_time_under_accidents_s"] - changes["actual_time_s"]
+        )
+        # the baseline visits exactly the same customers as the actual routes
+        visited = lambda seqs: sorted(n for seq in seqs for n in seq if n != "depot")
+        assert visited(changes["baseline_sequences"]) == visited([r["node_sequence"] for r in result[algo]["routes"]])

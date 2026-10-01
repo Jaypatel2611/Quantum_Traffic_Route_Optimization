@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { fetchEdges } from '../api/client';
+import { fetchEdges, fetchJobResult } from '../api/client';
 import type { AlgorithmResult, GraphEdge } from '../api/types';
 import { useAppActions, useAppState } from '../state/AppState';
 import { MapCanvas } from '../components/LazyMapCanvas';
@@ -10,6 +10,7 @@ import { RouteBreakdown } from '../components/RouteBreakdown';
 import { BackButton } from '../components/BackButton';
 import { VehicleSelector } from '../components/VehicleSelector';
 import { AccidentImpactPanel } from '../components/AccidentImpactPanel';
+import { RouteChangePanel } from '../components/RouteChangePanel';
 import { routeKey, vehicleColor, type Solver } from '../utils/vehicleColor';
 import { edgeIdFor } from './SetupScreen';
 
@@ -28,8 +29,8 @@ function visitNotes(ortools: AlgorithmResult, qpso: AlgorithmResult): Record<str
 }
 
 export function ResultsScreen() {
-  const { result, scenario, visibleRoutes } = useAppState();
-  const { goTo, setVisibleRoutes } = useAppActions();
+  const { result, scenario, visibleRoutes, jobId } = useAppState();
+  const { goTo, setVisibleRoutes, setResult } = useAppActions();
   const [edges, setEdges] = useState<GraphEdge[]>([]);
 
   // Real road network as map context, same as the Setup screen -- routes
@@ -40,6 +41,15 @@ export function ResultsScreen() {
   }, [scenario?.cityId]);
 
   const done = result && result.status === 'done' ? result : null;
+
+  // The no-accident comparison solves after the main result; refresh until it lands.
+  const comparisonPending = done?.route_changes_status === 'pending';
+  useEffect(() => {
+    if (!comparisonPending || !jobId) return;
+    const timer = setInterval(() => fetchJobResult(jobId).then(setResult).catch(() => {}), 2000);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [comparisonPending, jobId]);
   const nodeNotes = useMemo(() => (done ? visitNotes(done.ortools, done.qpso) : {}), [done]);
   const accidentIds = useMemo(
     () => (done ? done.accident_edges.map((a) => edgeIdFor(a.from_node_id, a.to_node_id)) : []),
@@ -106,6 +116,12 @@ export function ResultsScreen() {
       />
 
       <AccidentImpactPanel ortools={done.ortools} qpso={done.qpso} />
+      <RouteChangePanel
+        ortools={done.ortools}
+        qpso={done.qpso}
+        status={done.route_changes_status}
+        depotId={scenario.nodes[0]?.id}
+      />
 
       <RouteComparisonTable ortools={done.ortools} qpso={done.qpso} />
 

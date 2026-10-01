@@ -64,3 +64,30 @@ async def test_reconnect_does_not_retrigger_the_job():
     first_read = list(orchestrator.convergence_cache["job4"])
     second_read = list(orchestrator.convergence_cache["job4"])
     assert first_read == second_read
+
+
+@pytest.mark.asyncio
+async def test_baseline_solve_runs_after_the_main_result_and_is_stored_separately():
+    orchestrator = OptimizationOrchestrator()
+    await orchestrator.run_comparison("job5", _payload(), seed=42, time_budget_s=1.5, baseline_payload=_payload())
+    result = orchestrator.job_results["job5"]
+    assert result["status"] == "done"
+    assert set(result["baseline"]) == {"ortools", "qpso"}
+    assert result["baseline"]["qpso"]["routes"]
+
+
+@pytest.mark.asyncio
+async def test_no_baseline_requested_means_none():
+    orchestrator = OptimizationOrchestrator()
+    await orchestrator.run_comparison("job6", _payload(), seed=42, time_budget_s=1.5)
+    assert orchestrator.job_results["job6"]["baseline"] is None
+
+
+@pytest.mark.asyncio
+async def test_a_failing_baseline_does_not_turn_the_finished_job_into_an_error():
+    orchestrator = OptimizationOrchestrator()
+    bad_baseline = {**_payload(), "demands": [0, 30]}  # wrong length -> solver raises
+    await orchestrator.run_comparison("job7", _payload(), seed=42, time_budget_s=1.5, baseline_payload=bad_baseline)
+    result = orchestrator.job_results["job7"]
+    assert result["status"] == "done"
+    assert result["baseline"] == "failed"

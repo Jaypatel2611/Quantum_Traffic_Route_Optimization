@@ -27,7 +27,9 @@ class OptimizationOrchestrator:
         # verification script, not a test.
         self._manager = None
 
-    async def run_comparison(self, job_id: str, payload: dict, seed: int, time_budget_s: float) -> None:
+    async def run_comparison(
+        self, job_id: str, payload: dict, seed: int, time_budget_s: float, baseline_payload: dict | None = None
+    ) -> None:
         if self._manager is None:
             self._manager = Manager()
         loop = asyncio.get_running_loop()
@@ -41,7 +43,28 @@ class OptimizationOrchestrator:
                 self.executor, run_qpso_job, payload, seed, time_budget_s, progress_list
             )
             ortools_result, qpso_result = await asyncio.gather(ortools_future, qpso_future)
-            self.job_results[job_id] = {"status": "done", "ortools": ortools_result, "qpso": qpso_result}
+            self.job_results[job_id] = {
+                "status": "done", "ortools": ortools_result, "qpso": qpso_result,
+                "baseline": "pending" if baseline_payload is not None else None,
+            }
         except Exception:
             logger.exception("Solver job %s failed", job_id)
             self.job_results[job_id] = {"status": "error", "detail": "Solver failed. Check server logs for details."}
+            return
+
+        if baseline_payload is None:
+            return
+        # Same seed and budget on the accident-free matrices, run only after the
+        # main pair finished so it never competes with them for CPU (QPSO's
+        # budget is wall-clock). The job is already "done"; a baseline failure
+        # must not turn it into an error.
+        result = self.job_results[job_id]
+        try:
+            baseline_ortools, baseline_qpso = await asyncio.gather(
+                loop.run_in_executor(self.executor, run_ortools_job, baseline_payload, seed, time_budget_s),
+                loop.run_in_executor(self.executor, run_qpso_job, baseline_payload, seed, time_budget_s, None),
+            )
+            result["baseline"] = {"ortools": baseline_ortools, "qpso": baseline_qpso}
+        except Exception:
+            logger.exception("Baseline solve for job %s failed", job_id)
+            result["baseline"] = "failed"

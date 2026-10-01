@@ -53,8 +53,17 @@ class AccidentImpactResponse(BaseModel):
     added_time_s: float
 
 
+class RouteChangesResponse(BaseModel):
+    changed: bool
+    baseline_sequences: list[list[str]]
+    baseline_time_under_accidents_s: float
+    actual_time_s: float
+    saved_time_s: float
+
+
 class AlgorithmResultResponse(BaseModel):
     routes: list[RouteResponse]
+    route_changes: RouteChangesResponse | None = None
     accident_impacts: list[AccidentImpactResponse] = []
     meta: dict
     total_co2_kg: float
@@ -76,3 +85,5 @@ class JobResultResponse(BaseModel):
     qpso: AlgorithmResultResponse | None = None
     green_impact: GreenImpactResponse | None = None
     accident_edges: list[AccidentEdgeResponse] = []
+    # none (no accidents) | pending (baseline still solving) | ready | unavailable (baseline failed)
+    route_changes_status: str = "none"

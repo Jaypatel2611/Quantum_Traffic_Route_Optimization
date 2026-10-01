@@ -187,7 +187,7 @@ def relocate_and_swap_polish(
                 # Relocate: move one customer from routes[i] into the
                 # cheapest position of routes[j].
                 for c in list(routes[i]):
-                    if load_j + demands[c] > vehicle_capacity:
+                    if c not in routes[i] or load_j + demands[c] > vehicle_capacity:
                         continue
                     without_i = [x for x in routes[i] if x != c]
                     base_time = _route_time(without_i, time_matrix, depot_index)
@@ -211,7 +211,17 @@ def relocate_and_swap_polish(
                 # can't (both routes stay the same size, so a capacity-tight
                 # pair can still improve without either exceeding it).
                 for c1 in list(routes[i]):
+                    if c1 not in routes[i]:
+                        continue
                     for c2 in list(routes[j]):
+                        # The lists were snapshotted before this loop; a swap
+                        # earlier in it already moved c1 / changed routes[j].
+                        # Acting on a stale id duplicates one customer and
+                        # drops another (and looks cheaper, so it was accepted).
+                        if c1 not in routes[i]:
+                            break
+                        if c2 not in routes[j]:
+                            continue
                         load_i_after = _route_load(routes[i], demands) - demands[c1] + demands[c2]
                         load_j_after = load_j - demands[c2] + demands[c1]
                         if load_i_after > vehicle_capacity or load_j_after > vehicle_capacity:

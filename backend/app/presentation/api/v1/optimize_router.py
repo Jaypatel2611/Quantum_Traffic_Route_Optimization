@@ -9,6 +9,7 @@ from fastapi.responses import StreamingResponse
 from app.application.interfaces.geospatial_repository_port import GeospatialRepositoryPort
 from app.application.services.green_impact_calculator import algorithm_result_payload, compute_green_impact
 from app.application.services.optimization_orchestrator import OptimizationOrchestrator
+from app.application.services.route_changes import compute_route_changes
 from app.domain.entities.node import Node
 from app.domain.exceptions import UnknownCityError
 from app.domain.value_objects.geographic_coordinates import GeographicCoordinates
@@ -164,6 +165,16 @@ async def create_job_from_nodes(
         job_payload["num_particles"] = request.num_particles
     if request.max_iterations is not None:
         job_payload["max_iterations"] = request.max_iterations
+
+    baseline_payload = None
+    if accident_edges:
+        # Same seed => the same random delay factors, so only the accidents differ.
+        free_distance, free_base_time = repository.build_matrices(request.city_id, nodes)
+        free_time = inject_stochastic_delay(
+            free_base_time, np.random.default_rng(request.seed), hour_of_day=request.hour_of_day
+        )
+        baseline_payload = {**job_payload, "distance_matrix": free_distance, "time_matrix": free_time}
+
     _remember(job_id, _JobContext(
         node_ids=[n.id for n in nodes],
         distance_matrix=distance_matrix,
@@ -174,7 +185,7 @@ async def create_job_from_nodes(
     ))
 
     background_tasks.add_task(
-        orchestrator.run_comparison, job_id, job_payload, request.seed, request.time_budget_s
+        orchestrator.run_comparison, job_id, job_payload, request.seed, request.time_budget_s, baseline_payload
     )
     return {"job_id": job_id}
 
@@ -226,11 +237,28 @@ async def get_job_result(
                         context.accident_edges,
                     )
 
+    baseline = result.get("baseline")
+    if context is None or not context.accident_edges or baseline is None:
+        route_changes_status = "none"
+    elif baseline == "pending":
+        route_changes_status = "pending"
+    elif baseline == "failed":
+        route_changes_status = "unavailable"
+    else:
+        route_changes_status = "ready"
+        for payload, solver, actual_routes in (
+            (ortools_payload, "ortools", ortools_routes), (qpso_payload, "qpso", qpso_routes),
+        ):
+            payload["route_changes"] = compute_route_changes(
+                baseline[solver]["routes"], actual_routes, context.node_ids, context.time_matrix
+            )
+
     return {
         "status": "done",
         "ortools": ortools_payload,
         "qpso": qpso_payload,
         "green_impact": compute_green_impact(ortools_routes, qpso_routes),
+        "route_changes_status": route_changes_status,
         "accident_edges": [
             {"from_node_id": a, "to_node_id": b} for a, b in (context.accident_edges if context else [])
         ],

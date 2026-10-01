@@ -40,8 +40,18 @@ export interface AccidentImpact {
   added_time_s: number;
 }
 
+/** Stop order with vs without the accidents, for one solver. */
+export interface RouteChanges {
+  changed: boolean;
+  baseline_sequences: string[][];
+  baseline_time_under_accidents_s: number;
+  actual_time_s: number;
+  saved_time_s: number;
+}
+
 export interface AlgorithmResult {
   routes: Route[];
+  route_changes?: RouteChanges | null;
   accident_impacts?: AccidentImpact[];
   meta: Record<string, unknown>;
   total_co2_kg: number;
@@ -67,6 +77,8 @@ export interface JobResultDone {
   qpso: AlgorithmResult;
   green_impact: GreenImpact;
   accident_edges: { from_node_id: number; to_node_id: number }[];
+  /** none: no accidents; pending: no-accident baseline still solving. */
+  route_changes_status: 'none' | 'pending' | 'ready' | 'unavailable';
 }
 
 export interface JobResultPending {

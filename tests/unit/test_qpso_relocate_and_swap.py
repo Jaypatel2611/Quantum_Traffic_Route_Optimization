@@ -75,3 +75,19 @@ def test_already_optimal_routes_are_left_alone():
     clusters = [frozenset(r) for r in polished if r]
     assert frozenset({0, 1, 2}) in clusters
     assert frozenset({3, 4, 5}) in clusters
+
+
+def test_polish_never_duplicates_or_drops_a_customer():
+    """Regression: after a successful swap the inner loops kept using the
+    pre-swap customer ids, so a later "swap" could copy one customer into a
+    route twice and drop another -- which looks cheaper, so it was accepted.
+    Any polished solution must still visit every customer exactly once."""
+    n = 8
+    for seed in range(300):
+        rng = np.random.default_rng(seed)
+        matrix = rng.uniform(1.0, 60.0, size=(n + 1, n + 1))  # asymmetric, like real one-way roads
+        np.fill_diagonal(matrix, 0.0)
+        demands = list(rng.uniform(5.0, 30.0, size=n))
+        routes = [[0, 1, 2], [3, 4], [5, 6, 7]]
+        polished = relocate_and_swap_polish(routes, matrix, demands, vehicle_capacity=80.0)
+        assert sorted(c for r in polished for c in r) == list(range(n)), f"seed {seed}: {polished}"

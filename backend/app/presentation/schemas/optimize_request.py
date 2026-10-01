@@ -76,6 +76,16 @@ class CreateJobFromNodesRequest(ForbidExtraModel):
     num_particles: int | None = Field(default=None, gt=0, le=200)
     max_iterations: int | None = Field(default=None, gt=0, le=5000)
     accident_edges: list[AccidentEdgeSchema] = Field(default_factory=list, max_length=50)
+    accident_edge: AccidentEdgeSchema | None = None  # legacy single-accident field, merged into accident_edges
+
+    @model_validator(mode="after")
+    def _merge_legacy_accident_edge(self) -> "CreateJobFromNodesRequest":
+        # Callers written before multi-accident support send one `accident_edge`.
+        if self.accident_edge is not None:
+            if self.accident_edge not in self.accident_edges:
+                self.accident_edges.append(self.accident_edge)
+            self.accident_edge = None
+        return self
 
     @model_validator(mode="after")
     def _depot_index_in_range(self) -> "CreateJobFromNodesRequest":

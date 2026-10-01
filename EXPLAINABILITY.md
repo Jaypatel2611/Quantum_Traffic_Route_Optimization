@@ -335,7 +335,7 @@ Real, honest result: the polish clearly helps at 60-node scale (more routes to r
 **Limitations**
 - Not verified in a real browser this session (the backend was stopped by a low-memory event and was not restarted); hover tooltips and the map overlay are covered by types and component-level tests only, with the map stubbed out in jsdom.
 - Going Back from Live Run while a job is running drops that run's result (the stream subscription ends); start it again from Setup.
-- The `accident_edge` -> `accident_edges` API change is breaking for any external caller of `/jobs/from-nodes`.
+- ~~The `accident_edge` -> `accident_edges` rename breaks old callers~~ Fixed: `/jobs/from-nodes` still accepts the legacy single `accident_edge` and merges it into `accident_edges` (deduplicated); responses only ever carry `accident_edges`.
 - A rerouted leg is flagged only if its road path changes; the solver can also reorder stops because of accidents, which shows up in the route chain, not the halo.
 - Accidents are road segments (existing system), not nodes; an accident on a segment with no alternative road changes time but not the drawn path.
 

@@ -33,6 +33,19 @@ class GeospatialRepositoryPort(Protocol):
         internals."""
         ...
 
+    def accident_impacts(
+        self,
+        city_id: str,
+        nodes: list[Node],
+        sequences: list[list[str]],
+        accident_edges: Sequence[tuple[int, int]],
+    ) -> list[dict]:
+        """One {"from_node_id", "to_node_id", "status", "added_time_s"} per
+        accident, in order, judged against the routes' stop order. status is
+        "not_on_route", "rerouted" or "driven_through". Raises
+        UnknownCityError for an unrecognized city_id."""
+        ...
+
     def route_leg_geometries(
         self,
         city_id: str,

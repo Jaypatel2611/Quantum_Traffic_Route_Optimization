@@ -32,8 +32,17 @@ export interface Route {
   geometry?: [number, number][];
 }
 
+/** What one accident did to one solver's routes (base road time, not the random delay). */
+export interface AccidentImpact {
+  from_node_id: number;
+  to_node_id: number;
+  status: 'not_on_route' | 'rerouted' | 'driven_through';
+  added_time_s: number;
+}
+
 export interface AlgorithmResult {
   routes: Route[];
+  accident_impacts?: AccidentImpact[];
   meta: Record<string, unknown>;
   total_co2_kg: number;
   total_time_s: number;

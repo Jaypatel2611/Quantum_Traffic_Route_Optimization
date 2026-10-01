@@ -46,8 +46,16 @@ class RouteResponse(BaseModel):
     rerouted_geometry: list[list[list[float]]] | None = None
 
 
+class AccidentImpactResponse(BaseModel):
+    from_node_id: int
+    to_node_id: int
+    status: str  # not_on_route | rerouted | driven_through
+    added_time_s: float
+
+
 class AlgorithmResultResponse(BaseModel):
     routes: list[RouteResponse]
+    accident_impacts: list[AccidentImpactResponse] = []
     meta: dict
     total_co2_kg: float
     total_time_s: float

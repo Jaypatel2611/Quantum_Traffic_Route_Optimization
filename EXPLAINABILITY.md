@@ -337,5 +337,9 @@ Real, honest result: the polish clearly helps at 60-node scale (more routes to r
 - Going Back from Live Run while a job is running drops that run's result (the stream subscription ends); start it again from Setup.
 - ~~The `accident_edge` -> `accident_edges` rename breaks old callers~~ Fixed: `/jobs/from-nodes` still accepts the legacy single `accident_edge` and merges it into `accident_edges` (deduplicated); responses only ever carry `accident_edges`.
 - A rerouted leg is flagged only if its road path changes; the solver can also reorder stops because of accidents, which shows up in the route chain, not the halo.
-- Accidents are road segments (existing system), not nodes; an accident on a segment with no alternative road changes time but not the drawn path.
+- Accidents are road segments (existing system), not nodes.
+- ~~An accident on a segment with no alternative looks like it did nothing~~ Fixed by the Accident impact panel below.
+
+### Accident impact panel
+Each accident is now reported per solver as `not_on_route` (no leg's fastest free path uses the road: no effect), `rerouted` (legs used it for free but now drive around it, with the extra time) or `driven_through` (no cheaper way around, so legs still use it, slowed). `build_accident_impacts` judges against the solver's final stop order. `added_time_s` is that accident's own base road-time cost over the legs it crosses (computed with only that accident applied); the random log-normal traffic delay is applied to the whole matrix and is not attributed per road. Status uses the real combined situation: an accident that is avoidable alone becomes `driven_through` if another accident blocks the detour. If the solver reorders stops to avoid an accident entirely, the final order no longer crosses it, so it reads `not_on_route`. Tests: three builder cases (rerouted with exact extra time, driven through, off-route) plus the combined-accidents case, an integration check on the live `/result` payload, and the panel's rendering; backend 111, frontend 32 tests passing.
 

@@ -6,6 +6,7 @@ import numpy as np
 from app.domain.entities.node import Node
 from app.domain.exceptions import UnknownCityError
 from app.infrastructure.geospatial.distance_matrix_builder import (
+    build_accident_impacts,
     build_distance_time_matrix,
     build_route_leg_geometries,
 )
@@ -83,6 +84,17 @@ class CachedGraphRepository:
         self, city_id: str, nodes: list[Node], accident_edges: Sequence[tuple[int, int]] = ()
     ) -> tuple[np.ndarray, np.ndarray]:
         return build_distance_time_matrix(self._load_with_accidents(city_id, accident_edges), nodes)
+
+    def accident_impacts(
+        self,
+        city_id: str,
+        nodes: list[Node],
+        sequences: list[list[str]],
+        accident_edges: Sequence[tuple[int, int]],
+    ) -> list[dict]:
+        return build_accident_impacts(
+            self._load(city_id), nodes, sequences, list(accident_edges), ACCIDENT_DELAY_MULTIPLIER
+        )
 
     def route_leg_geometries(
         self,

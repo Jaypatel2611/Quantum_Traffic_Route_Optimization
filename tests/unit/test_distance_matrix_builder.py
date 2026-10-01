@@ -7,7 +7,11 @@ import networkx as nx
 import numpy as np
 from app.domain.entities.node import Node
 from app.domain.value_objects.geographic_coordinates import GeographicCoordinates
-from app.infrastructure.geospatial.distance_matrix_builder import build_distance_time_matrix, build_route_geometries
+from app.infrastructure.geospatial.distance_matrix_builder import (
+    build_accident_impacts,
+    build_distance_time_matrix,
+    build_route_geometries,
+)
 
 
 def _asymmetric_graph():
@@ -79,3 +83,49 @@ def test_route_geometry_detours_around_accident_edge():
     assert [12.91, 77.61] in free and [12.93, 77.60] not in free
     assert [12.93, 77.60] in blocked and [12.91, 77.61] not in blocked
 
+
+def _two_route_graph(alt_time: float):
+    """1-2-3 is fast (60+60); 1-4-3 is the alternative (alt_time per leg)."""
+    g = nx.MultiDiGraph()
+    for nid, y, x in [(1, 12.90, 77.60), (2, 12.91, 77.61), (3, 12.92, 77.62), (4, 12.93, 77.60), (5, 12.95, 77.65)]:
+        g.add_node(nid, y=y, x=x)
+    g.add_edge(1, 2, length=500, travel_time=60)
+    g.add_edge(2, 3, length=500, travel_time=60)
+    g.add_edge(3, 5, length=300, travel_time=30)  # dead-end spur no route uses
+    g.add_edge(1, 4, length=600, travel_time=alt_time)
+    g.add_edge(4, 3, length=600, travel_time=alt_time)
+    g.graph["crs"] = "epsg:4326"
+    return g
+
+
+def _impacts(graph, accidents):
+    nodes = [
+        Node(id="n1", coordinates=GeographicCoordinates(lat=12.90, lon=77.60)),
+        Node(id="n3", coordinates=GeographicCoordinates(lat=12.92, lon=77.62)),
+    ]
+    return build_accident_impacts(graph, nodes, [["n1", "n3"]], accidents, multiplier=5.0)
+
+
+def test_accident_with_a_cheaper_way_around_is_rerouted_with_the_extra_time():
+    [impact] = _impacts(_two_route_graph(alt_time=100), [(1, 2)])
+    # free 60+60=120; with 1-2 at 300 the alternative 100+100=200 wins -> +80
+    assert impact["status"] == "rerouted"
+    assert impact["added_time_s"] == 80
+
+
+def test_accident_with_no_cheaper_way_around_is_driven_through_slower():
+    [impact] = _impacts(_two_route_graph(alt_time=1000), [(1, 2)])
+    assert impact["status"] == "driven_through"
+    assert impact["added_time_s"] == 240  # 1-2 goes 60 -> 300
+
+
+def test_accident_off_every_route_has_no_effect_and_each_accident_is_judged_separately():
+    on, off = _impacts(_two_route_graph(alt_time=100), [(2, 3), (3, 5)])
+    assert on["status"] == "rerouted"
+    assert off == {"from_node_id": 3, "to_node_id": 5, "status": "not_on_route", "added_time_s": 0.0}
+
+
+def test_a_second_accident_that_blocks_the_detour_turns_a_reroute_into_driven_through():
+    # Alone, 2-3 is avoidable via 1-4-3; with 1-4 also blocked there is no cheaper way around.
+    on, _ = _impacts(_two_route_graph(alt_time=100), [(2, 3), (1, 4)])
+    assert on["status"] == "driven_through"

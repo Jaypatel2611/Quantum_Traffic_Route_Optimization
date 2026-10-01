@@ -5,7 +5,7 @@ import osmnx as ox
 from app.domain.entities.node import Node
 
 
-def _snap_to_graph_nodes(graph: nx.MultiDiGraph, nodes: list[Node]) -> list:
+def snap_to_graph_nodes(graph: nx.MultiDiGraph, nodes: list[Node]) -> list:
     xs = [n.coordinates.lon for n in nodes]
     ys = [n.coordinates.lat for n in nodes]
     snapped_edges = ox.distance.nearest_edges(graph, xs, ys)
@@ -27,7 +27,7 @@ def _snap_to_graph_nodes(graph: nx.MultiDiGraph, nodes: list[Node]) -> list:
 def build_distance_time_matrix(graph: nx.MultiDiGraph, nodes: list[Node]) -> tuple[np.ndarray, np.ndarray]:
     """Snaps each Node to its nearest routable edge, then computes the asymmetric
     N×N shortest-path distance (meters) and time (seconds) matrices (PRD Section 10)."""
-    graph_node_ids = _snap_to_graph_nodes(graph, nodes)
+    graph_node_ids = snap_to_graph_nodes(graph, nodes)
     n = len(nodes)
     dist = np.zeros((n, n))
     time = np.zeros((n, n))
@@ -54,7 +54,7 @@ def build_route_leg_geometries(
     Each leg starts and ends at the stop's own coordinates so the line meets
     the map dots rather than the nearest graph junction."""
     index = {n.id: i for i, n in enumerate(nodes)}
-    graph_ids = _snap_to_graph_nodes(graph, nodes)
+    graph_ids = snap_to_graph_nodes(graph, nodes)
     legs: dict[tuple[int, int], list[list[float]]] = {}
 
     def leg(a: int, b: int) -> list[list[float]]:
@@ -77,3 +77,63 @@ def build_route_geometries(
         [point for leg in legs for point in leg]
         for legs in build_route_leg_geometries(graph, nodes, sequences)
     ]
+
+
+def build_accident_impacts(
+    graph: nx.MultiDiGraph,
+    nodes: list[Node],
+    sequences: list[list[str]],
+    accident_edges: list[tuple[int, int]],
+    multiplier: float,
+) -> list[dict]:
+    """One entry per accident, judged against the routes' actual stop order.
+    `graph` is the accident-free graph. Statuses:
+      not_on_route   -- no leg's fastest free path uses the segment: no effect.
+      rerouted       -- legs crossed it for free but now drive around it.
+      driven_through -- no cheaper way around: legs still use it, slowed.
+    added_time_s is that accident's own base road-time cost over the crossed legs
+    (the injected random delay is applied to the whole matrix, not per road)."""
+    index = {n.id: i for i, n in enumerate(nodes)}
+    graph_ids = snap_to_graph_nodes(graph, nodes)
+
+    def delayed(pairs: set[frozenset]) -> nx.MultiDiGraph:
+        g = graph.copy()
+        for u, v, data in g.edges(data=True):
+            if frozenset((u, v)) in pairs:
+                data["travel_time"] *= multiplier
+        return g
+
+    def uses(path: list, pair: frozenset) -> bool:
+        return any(frozenset((u, v)) == pair for u, v in zip(path, path[1:]))
+
+    def fastest(g: nx.MultiDiGraph, leg: tuple[int, int]) -> list:
+        return nx.shortest_path(g, graph_ids[leg[0]], graph_ids[leg[1]], weight="travel_time")
+
+    legs = {
+        (index[a], index[b])
+        for sequence in sequences
+        for a, b in zip(sequence, sequence[1:])
+    }
+    free_paths = {leg: fastest(graph, leg) for leg in legs}
+    with_all = delayed({frozenset(e) for e in accident_edges})
+    drawn_paths = {leg: fastest(with_all, leg) for leg in legs}
+
+    impacts = []
+    for from_id, to_id in accident_edges:
+        pair = frozenset((from_id, to_id))
+        crossed = [leg for leg, path in free_paths.items() if uses(path, pair)]
+        status, added = "not_on_route", 0.0
+        if crossed:
+            alone = delayed({pair})
+            added = sum(
+                nx.path_weight(alone, fastest(alone, leg), "travel_time")
+                - nx.path_weight(graph, free_paths[leg], "travel_time")
+                for leg in crossed
+            )
+            status = "driven_through" if any(uses(drawn_paths[leg], pair) for leg in crossed) else "rerouted"
+        impacts.append({
+            "from_node_id": from_id, "to_node_id": to_id,
+            "status": status, "added_time_s": float(added),
+        })
+    return impacts
+

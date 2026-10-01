@@ -260,3 +260,12 @@ def test_multiple_accidents_are_echoed_and_flag_rerouted_legs():
         for route in result[algo]["routes"]:
             assert route["rerouted_geometry"] is not None
     assert any(route["rerouted_geometry"] for route in result["ortools"]["routes"])
+    for algo in ("ortools", "qpso"):
+        impacts = result[algo]["accident_impacts"]
+        assert [(i["from_node_id"], i["to_node_id"]) for i in impacts] == [
+            (a["from_node_id"], a["to_node_id"]) for a in payload["accident_edges"]
+        ]
+        assert all(i["status"] in {"not_on_route", "rerouted", "driven_through"} for i in impacts)
+        assert all(i["added_time_s"] >= 0 for i in impacts)
+        assert all((i["added_time_s"] == 0) == (i["status"] == "not_on_route") for i in impacts)
+    assert free["ortools"]["accident_impacts"] == []  # nothing injected, nothing to report

@@ -9,6 +9,7 @@ import { MapLegend } from '../components/MapLegend';
 import { RouteBreakdown } from '../components/RouteBreakdown';
 import { BackButton } from '../components/BackButton';
 import { VehicleSelector } from '../components/VehicleSelector';
+import { AccidentImpactPanel } from '../components/AccidentImpactPanel';
 import { routeKey, vehicleColor, type Solver } from '../utils/vehicleColor';
 import { edgeIdFor } from './SetupScreen';
 
@@ -103,6 +104,8 @@ export function ResultsScreen() {
           { routes: shown.qpso.map((e) => e.route), colors: shown.qpso.map((e) => e.color), color: [232, 135, 30], dashed: true },
         ]}
       />
+
+      <AccidentImpactPanel ortools={done.ortools} qpso={done.qpso} />
 
       <RouteComparisonTable ortools={done.ortools} qpso={done.qpso} />
 

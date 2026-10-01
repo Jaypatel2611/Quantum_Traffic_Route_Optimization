@@ -217,6 +217,14 @@ async def get_job_result(
         _add_stops(both, context)
         if context.city_id is not None:
             _add_geometry(both, context, repository)
+            if context.accident_edges:
+                for payload in (ortools_payload, qpso_payload):
+                    payload["accident_impacts"] = repository.accident_impacts(
+                        context.city_id,
+                        context.nodes,
+                        [r["node_sequence"] for r in payload["routes"]],
+                        context.accident_edges,
+                    )
 
     return {
         "status": "done",

@@ -4,6 +4,19 @@ import numpy as np
 
 from app.domain.entities.route import Route
 from app.domain.value_objects.fitness_score import FitnessScore
+from types import SimpleNamespace
+
+from app.infrastructure.algorithms.copert_model import route_emissions
+from app.infrastructure.algorithms.qpso_local_search import (
+    improve_routes,
+    nearest_neighbor_tour,
+    tour_to_position,
+)
+
+SWARM_SHARE = 0.4
+"""Fraction of the time budget the swarm itself gets; the rest goes to the local
+search that polishes its best routes. The total stays inside the one shared
+budget OR-Tools also gets, so the comparison remains fair."""
 
 
 def rov_map(position: np.ndarray) -> np.ndarray:
@@ -267,6 +280,19 @@ def _route_distance_and_time(route: list[int], distance_matrix, time_matrix, dep
     return dist, time
 
 
+def _candidate_key(routes, distance_matrix, time_matrix, demands, vehicle_capacity, depot_index):
+    """Rank polished candidates: feasible first, then lowest estimated CO2, then time."""
+    overload = sum(max(0.0, sum(demands[c] for c in r) - vehicle_capacity) for r in routes)
+    co2 = total_time = 0.0
+    for route in routes:
+        if not route:
+            continue
+        d, t = _route_distance_and_time(route, distance_matrix, time_matrix, depot_index)
+        co2 += route_emissions(SimpleNamespace(total_distance_m=d, total_time_s=t)).total_kg
+        total_time += t
+    return (overload > 1e-9, co2, total_time)
+
+
 def evaluate_fitness(
     routes: list[list[int]],
     distance_matrix,
@@ -340,6 +366,13 @@ def run_qpso(
     n = len(demands)  # customer count (depot excluded, PRD Section 9's R^N)
 
     positions = rng.uniform(-1.0, 1.0, size=(num_particles, n))
+    if n > 1:
+        # Warm start: a tenth of the swarm begins near the nearest-neighbour tour
+        # (jittered), the rest stays random so exploration is not given up.
+        seed_position = tour_to_position(nearest_neighbor_tour(time_matrix, n, depot_index), n)
+        for i in range(max(1, num_particles // 10)):
+            positions[i] = seed_position + rng.normal(0.0, 0.05, size=n)
+    swarm_budget_s = time_budget_s * SWARM_SHARE
     pbest_positions = positions.copy()
     pbest_fitness = [None] * num_particles
     gbest_position = None
@@ -359,7 +392,7 @@ def run_qpso(
 
     iteration = 0
     for iteration in range(max_iterations):
-        if time.monotonic() - start >= time_budget_s:
+        if time.monotonic() - start >= swarm_budget_s:
             stopped_reason = "time_budget"
             break
 
@@ -419,9 +452,34 @@ def run_qpso(
         positions = attractor + sign * alpha * np.abs(mbest - positions) * np.log(1.0 / u)
 
     best_routes = split_into_routes(rov_map(gbest_position), num_vehicles, time_matrix, depot_index)
-    best_routes = [two_opt_route(r, time_matrix, depot_index) for r in best_routes]
-    best_routes = relocate_and_swap_polish(
-        best_routes, time_matrix, demands, vehicle_capacity, depot_index
+    # Exploit what the swarm found: iterated local search until the shared
+    # budget runs out (or no further gain), instead of one fixed polish pass.
+    # The local search minimizes the same blend the swarm does (PRD Section 11:
+    # distance and time weighted w_distance / w_time), each normalized by the
+    # swarm's own best solution, so the two stages optimize one objective.
+    swarm_dist = sum(_route_distance_and_time(r, distance_matrix, time_matrix, depot_index)[0] for r in best_routes)
+    swarm_time = sum(_route_distance_and_time(r, distance_matrix, time_matrix, depot_index)[1] for r in best_routes)
+    blended = (
+        w_distance * np.asarray(distance_matrix, dtype=float) / max(swarm_dist, 1e-9)
+        + w_time * np.asarray(time_matrix, dtype=float) / max(swarm_time, 1e-9)
+    )
+    # Two polished candidates from the same swarm result -- one chasing time, one
+    # the blended objective -- split the remaining budget evenly; QPSO keeps the
+    # one with the lower estimated CO2 (the project's green objective, COPERT).
+    now = time.monotonic()
+    halfway = now + (start + time_budget_s - now) / 2
+    candidates = [
+        improve_routes(
+            best_routes, matrix, demands, vehicle_capacity, depot_index,
+            deadline=deadline, rng=np.random.default_rng(seed + 1 + i),
+        )
+        for i, (matrix, deadline) in enumerate(
+            ((np.asarray(time_matrix, dtype=float), halfway), (blended, start + time_budget_s))
+        )
+    ]
+    best_routes = min(
+        candidates,
+        key=lambda rs: _candidate_key(rs, distance_matrix, time_matrix, demands, vehicle_capacity, depot_index),
     )
     meta = {
         "seed": seed,
@@ -429,6 +487,8 @@ def run_qpso(
         "iterations_run": iteration + 1,
         "stopped_reason": stopped_reason,
         "num_particles": num_particles,
+        "swarm_share": SWARM_SHARE,
+        "local_search": "iterated_local_search (time and blended candidates, kept by lower CO2)",
     }
     return best_routes, gbest_fitness, meta
 

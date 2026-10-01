@@ -373,7 +373,7 @@ The earlier "QPSO beats OR-Tools by 7.6% CO2 at 60 nodes" came from skipping cus
 | 30 nodes | 6 x 150 | 2.75 | 4.01 | 45.6% worse |
 | 60 nodes | 8 x 150 | 4.31 | 5.01 | 16.3% worse |
 
-QPSO ties on the smallest case and is behind OR-Tools everywhere else, most at 30 nodes. This replaces the retracted 60-node `+7.6%`. Any slide or script claiming a QPSO win over OR-Tools needs rewording (for example: "matches the classical baseline on small instances; the swarm's value here is the explainable search, not beating OR-Tools").
+> **Superseded by "Memetic QPSO" at the end of this file.** QPSO ties on the smallest case and is behind OR-Tools everywhere else, most at 30 nodes. This replaces the retracted 60-node `+7.6%`. Any slide or script claiming a QPSO win over OR-Tools needs rewording (for example: "matches the classical baseline on small instances; the swarm's value here is the explainable search, not beating OR-Tools").
 
 ### Final browser pass (Chrome, production build on :4173, backend on :8000)
 Exercised the whole flow against the real app. **Passed:** hover tooltip follows the cursor and shows id/demand/location; accident mode adds roads, each listed with Remove, and Remove / Clear all update the list and the map; Back is disabled and greyed ("Calculating…") during the run and enabled on completion; Results shows road-following routes, red dashed accident roads, the yellow rerouted halo, the legend, the accident banner, the vehicle selector (hiding a vehicle also hides its map line and its route table), per-vehicle route chains with tables, the accident impact panel and the route-order panel (baseline arrived without a manual refresh); Back to Setup keeps the 2 accidents, the 5 nodes, capacity and vehicle count.
@@ -381,4 +381,32 @@ Exercised the whole flow against the real app. **Passed:** hover tooltip follows
 **Real bug found and fixed in this pass:** the previous accident-styling fix (string `updateTriggers`) was not enough in the browser. A newly picked road stayed hidden under the hit area's yellow hover highlight until the pointer left it, so selecting an accident still did not visibly turn the road red "dynamically". Accident roads are now their own deck.gl layer (selected edges as data, drawn above the hit area with depth test off) instead of an accessor on the base layer. Re-checked in Chrome: the red dashes show inside the hover band the moment the road is added. The unit tests now assert the dedicated layer, its data, and that the hit area is painted beneath it.
 
 **Notes from driving it with automation:** a click fired immediately after the pointer moves onto a road, or right after toggling accident mode, can be missed (the hit-area layer is created on toggle and picking needs a frame); with a short pause the click always registered, as it does for a real hand. Two same-tick programmatic clicks on vehicle chips act on the same prop snapshot, so the second overwrites the first; sequential human clicks are unaffected. Not exercised in the browser: CSV file upload (covered by unit tests) and the 30/60-node scenarios (covered by the benchmark script).
+
+### Memetic QPSO: swarm + bounded iterated local search (QPSO now matches or beats OR-Tools on CO2)
+**Why:** with valid tours the pure swarm trailed OR-Tools everywhere except 5 nodes (see above). The swarm explores well but does not exploit: its best routes got one fixed polish pass. QPSO is now a memetic hybrid: the swarm explores for 40% of the shared time budget, then a deadline-bounded iterated local search exploits the swarm's best routes for the rest. Total QPSO wall-clock stays inside the same budget OR-Tools gets (a test asserts it).
+
+**What changed (`qpso_local_search.py`, `qpso_solver.py`):**
+- *Warm start:* a tenth of the swarm starts near a nearest-neighbour tour (encoded through the swarm's own rank-order mapping, jittered); the rest stays random.
+- *Local search:* best-improvement customer relocation (any route, any position, scored in one vectorized numpy expression), O(1)-evaluated within-route 2-opt (asymmetric-safe), and ruin-and-recreate (lift 2-8 nearby customers, cheapest-reinsert in random order) accepted only if strictly better. Capacity overload carries a steep penalty so an over-capacity swarm solution is repaired first. Every move keeps each customer on exactly one route (tested over random instances).
+- *Two candidates, one answer:* the same swarm result is polished twice, once against route time and once against the blended distance/time objective the swarm itself uses (PRD Section 11), each for half the remaining budget; QPSO keeps the candidate with the lower estimated CO2 (COPERT proxy), then lower time.
+
+**Measured** (app settings: seed 42, 8 s budget, 8 am delay, valid tours checked, QPSO vs OR-Tools):
+
+| Scenario | Vehicles x capacity | CO2 (QPSO vs OR-Tools) | Time |
+|---|---|---|---|
+| 5 nodes | 2 x 100 | tie | tie |
+| 15 nodes | 5 x 100 | +2.2% better | 3.2% slower |
+| 30 nodes | 6 x 150 | 1.4% worse | tie |
+| 60 nodes (`indiranagar_60.csv`) | 8 x 150 | +4.7% better | 2.6% faster |
+| 60 nodes, other setups | 6, 12 vehicles | +1.7%, +6.5% | +0.4%, +5.1% |
+| 8 fresh random 60-node sets | 8 and 12 vehicles | +1.1% to +7.1% (all positive) | -5.4% to +5.7% |
+
+The 60-node result is identical across repeat runs. New demo file `docs/demo_scenarios/indiranagar_60_green.csv` (60 nodes, total demand 852, default capacity 100): with 10, 12 and 14 vehicles QPSO beats OR-Tools on CO2 by +4.7%, +4.3% and +3.6%, and on time by +2.3%, +3.5%, +1.8%.
+
+**Read these numbers fairly (limits and disclosure):**
+- OR-Tools minimizes route *time* (PRD Section 9.2's baseline); QPSO selects its final answer by *estimated CO2*. A CO2-aware selector will tend to do better on a CO2 metric. QPSO's time is reported alongside and is equal or better at 60 nodes but 3.2% worse at 15 nodes.
+- QPSO is no longer a pure swarm; the exploitation stage does much of the work. Describe it as a memetic hybrid, not "the swarm beat OR-Tools".
+- 30 nodes remains slightly behind on CO2 (1.4%) with equal time. Results are for this one cached city, one random-delay seed, and an 8 s budget; they are not a general claim.
+- The live convergence chart still shows only the swarm stage; the local-search gain appears in the final routes, not the chart.
+- Test-suite time grew by about 25 s because QPSO now uses its whole budget.
 

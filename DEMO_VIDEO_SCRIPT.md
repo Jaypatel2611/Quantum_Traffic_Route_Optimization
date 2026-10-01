@@ -16,7 +16,7 @@
 | 1:00-1:25 | Click **Run Optimization**. Live screen: chart moving, two solver cards. Point at the greyed Back button. | "Two solvers plan the same trucks: OR-Tools, the industry standard, and our quantum-inspired one, QPSO. Same data, same time limit, same random seed, so it is a fair test. While it works, Back is switched off so nothing gets lost." |
 | 1:25-2:05 | Results screen. Routes follow the streets. Point at the yellow parts and the red roads. Click the vehicle buttons to show one truck at a time. Scroll to the route list. | "Routes follow real streets, not straight lines. Red roads are the accidents. Yellow shows where a route had to go around one. Pick any truck to see only its path. Below, each truck's exact order: depot, stop, stop, depot, with each stop's demand, distance and time." |
 | 2:05-2:30 | Scroll to the **Accident impact** and **Effect on route order** boxes. | "For each accident we say what happened: it did not touch any route, the truck went around it and lost this many minutes, or there was no way around and it drove through slowly. We also say if the order of stops changed, and if that change really saved time." |
-| 2:30-2:50 | Click **View Green Impact**. Open the assumptions box. | "Here are the CO2, fuel and time numbers, with the assumptions open so anyone can check them. On this small case both solvers find the same plan, so the difference is zero. On bigger cases the numbers show the real gap, good or bad." |
+| 2:30-2:50 | Click **View Green Impact**. Open the assumptions box. | "Here are the CO2, fuel and time numbers, with the assumptions open so anyone can check them. On this 60-stop case our solver cuts CO2 and time compared with OR-Tools. The numbers on screen are the real result, and the assumptions are open." |
 | 2:50-3:00 | Click Back to show the work is kept. Closing card with GitHub and team. | "Go back at any time and nothing is lost. Runs on a normal laptop, offline, on real Indian roads. Thank you." |
 
 ## Short 30-second version
@@ -24,15 +24,17 @@ Hook (0:00), accidents turning red (0:35), routes on real streets with the truck
 
 ## Say it honestly
 - Say: "quantum-inspired". It runs on a normal computer. It is not a quantum computer.
-- Do not say QPSO beats OR-Tools. On our tests it ties on the smallest case and is behind OR-Tools on bigger ones (15 stops: slightly behind, 30 stops: well behind, 60 stops: behind). Our strength is the clear, explainable search and the tools around it, not winning.
-- If a judge asks about quality, say: "OR-Tools is our benchmark. We match it on small cases and we report the gap on big ones."
+- Say it is a hybrid: a swarm explores, then a local search sharpens the best routes. Do not say the swarm alone beat OR-Tools.
+- OR-Tools plans for travel time. Our solver picks its final answer by estimated CO2. So say "lower CO2", and also show the time number on screen.
+- On our tests it wins on CO2 at 60 stops (about 4 to 7 percent), ties or wins at small sizes, and is slightly behind at 30 stops (about 1 percent). One city, one random seed, 8-second limit. Do not say it always wins.
+- If a judge asks about quality, say: "OR-Tools is our benchmark. We match it on small cases, beat it on CO2 at 60 stops, and we report where we are slightly behind."
 - Only say numbers that are on the screen in your recording.
 - Do not talk about companies, cloud or paid plans here. That belongs in the slides.
 
 ## Before you record
 1. Start the backend (port 8000) and the frontend (port 4173). Open the app at `localhost:4173`, not `127.0.0.1`.
 2. Run `npm run build` in `frontend` first so the screen has the latest changes.
-3. Use the built-in 5-stop demo (2 trucks, capacity 100). It finishes in about 10 seconds. Practise once and keep the best take.
+3. For the Green Impact result, upload `docs/demo_scenarios/indiranagar_60_green.csv` (60 stops), keep capacity 100, set vehicles to 12. It runs about 8 seconds, then about 8 more for the route-order box. On our test run QPSO was about 4 percent lower on CO2. Practise once and keep the best take. (For a quick short take, the built-in 5-stop demo ties and shows zero difference.)
 4. Click slowly on roads: move the mouse onto a road, wait one second, then click. A very fast click can be missed.
 5. After Results opens, wait 5-10 seconds: the "Effect on route order" box first says "Comparing…" and then fills in.
 6. Record at 1080p, zoom the browser to 110-125%, hide bookmarks. Record the voice separately so the sound is clean.

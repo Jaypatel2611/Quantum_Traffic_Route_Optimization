@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from typing import Protocol
 
 import numpy as np
@@ -19,29 +20,29 @@ class GeospatialRepositoryPort(Protocol):
         ...
 
     def build_matrices(
-        self, city_id: str, nodes: list[Node], accident_edge: tuple[int, int] | None = None
+        self, city_id: str, nodes: list[Node], accident_edges: Sequence[tuple[int, int]] = ()
     ) -> tuple[np.ndarray, np.ndarray]:
         """Returns (distance_matrix, base_time_matrix) for the given nodes
-        against city_id's cached road graph. When accident_edge (a pair of
-        graph node ids from list_edges, order-independent) is given, that
-        road segment's travel time is multiplied fivefold before the
-        matrices are computed -- Flow C's accident injection. Raises
+        against city_id's cached road graph. Every pair in accident_edges
+        (graph node ids from list_edges, order-independent) has its road
+        segment's travel time multiplied fivefold before the matrices are
+        computed -- Flow C's accident injection, any number at once. Raises
         UnknownCityError (app.domain.exceptions) for an unrecognized
         city_id -- never a bare KeyError, so the presentation layer can
         translate it to a clean 404/422 without knowing this port's
         internals."""
         ...
 
-    def route_geometries(
+    def route_leg_geometries(
         self,
         city_id: str,
         nodes: list[Node],
         sequences: list[list[str]],
-        accident_edge: tuple[int, int] | None = None,
-    ) -> list[list[list[float]]]:
-        """Returns one road-following [[lat, lon], ...] polyline per node-id
-        sequence -- the fastest road path between each consecutive pair of
-        stops, for drawing routes on the map. accident_edge (same meaning as
-        build_matrices) makes the paths detour around the blocked segment. Raises UnknownCityError for an
-        unrecognized city_id."""
+        accident_edges: Sequence[tuple[int, int]] = (),
+    ) -> list[list[list[list[float]]]]:
+        """Returns, per node-id sequence, one road-following [[lat, lon], ...]
+        polyline per leg (consecutive stop pair) -- the fastest road path,
+        for drawing routes on the map. accident_edges (same meaning as
+        build_matrices) makes the paths detour around blocked segments.
+        Raises UnknownCityError for an unrecognized city_id."""
         ...

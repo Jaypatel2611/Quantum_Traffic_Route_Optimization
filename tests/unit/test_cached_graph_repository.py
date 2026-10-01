@@ -74,7 +74,23 @@ def test_accident_edge_multiplies_that_segments_travel_time_fivefold():
 
     _, base_time = repo.build_matrices("indiranagar_bengaluru", nodes)
     _, accident_time = repo.build_matrices(
-        "indiranagar_bengaluru", nodes, accident_edge=(from_id, to_id)
+        "indiranagar_bengaluru", nodes, accident_edges=[(from_id, to_id)]
     )
 
     assert accident_time[0][1] >= base_time[0][1] * 4.9  # ~5x, allowing for float rounding
+
+
+def test_multiple_accident_edges_each_get_the_delay_and_a_repeat_is_applied_once():
+    repo = CachedGraphRepository()
+    edges = repo.list_edges("indiranagar_bengaluru")
+    first, second = edges[0], edges[1]
+    pair_a = (first["from_node_id"], first["to_node_id"])
+    pair_b = (second["from_node_id"], second["to_node_id"])
+
+    base = repo._load("indiranagar_bengaluru")
+    graph = repo._load_with_accidents("indiranagar_bengaluru", [pair_a, pair_b, pair_a])
+
+    for u, v in (pair_a, pair_b):
+        for key, data in graph[u][v].items():
+            assert data["travel_time"] == pytest.approx(base[u][v][key]["travel_time"] * 5.0)
+    assert base is not graph  # the cached graph itself is never mutated

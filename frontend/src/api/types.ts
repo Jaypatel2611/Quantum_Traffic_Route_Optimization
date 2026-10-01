@@ -10,11 +10,24 @@ export interface ScenarioNode {
   demand: number;
 }
 
+/** One visit in a route: the leg that reached it and the running totals. */
+export interface Stop {
+  node_id: string;
+  leg_distance_m: number;
+  leg_time_s: number;
+  cumulative_distance_m: number;
+  cumulative_time_s: number;
+}
+
 export interface Route {
   vehicle_id: string;
   node_sequence: string[];
   total_distance_m: number;
   total_time_s: number;
+  /** One per node_sequence entry, same order. */
+  stops?: Stop[];
+  /** Legs whose road path differs from the no-accident path -- the detours accidents forced. */
+  rerouted_geometry?: [number, number][][];
   /** Road-following [lat, lon] polyline; absent for raw-matrix jobs. */
   geometry?: [number, number][];
 }
@@ -44,7 +57,7 @@ export interface JobResultDone {
   ortools: AlgorithmResult;
   qpso: AlgorithmResult;
   green_impact: GreenImpact;
-  accident_edge: { from_node_id: number; to_node_id: number } | null;
+  accident_edges: { from_node_id: number; to_node_id: number }[];
 }
 
 export interface JobResultPending {
@@ -73,5 +86,16 @@ export interface ScenarioConfig {
   numVehicles: number;
   seed: number;
   timeBudgetS: number;
-  accidentEdge: AccidentEdge | null;
+  accidentEdges: AccidentEdge[];
+}
+
+/** Setup-screen form state, kept in AppState so going Back from Live Run /
+ * Results restores the uploaded CSV, accidents and settings untouched. */
+export interface SetupDraft {
+  cityId: string;
+  nodes: ScenarioNode[];
+  usingDefault: boolean;
+  vehicleCapacity: number;
+  numVehicles: number;
+  accidentEdges: AccidentEdge[];
 }

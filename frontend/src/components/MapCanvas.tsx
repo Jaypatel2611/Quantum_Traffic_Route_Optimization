@@ -2,14 +2,23 @@ import { DeckGL } from '@deck.gl/react';
 import { OrthographicView } from '@deck.gl/core';
 import { PathLayer, ScatterplotLayer } from '@deck.gl/layers';
 import { PathStyleExtension } from '@deck.gl/extensions';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { GraphEdge, Route, ScenarioNode } from '../api/types';
 import { colorForNode } from '../utils/nodeColor';
 
 export interface MapRouteLayer {
   routes: Route[];
+  /** Layer color; routes[i] uses colors[i] when given (one shade per vehicle). */
   color: [number, number, number];
+  colors?: [number, number, number][];
   dashed: boolean;
+}
+
+interface HoveredNode {
+  node: ScenarioNode;
+  isDepot: boolean;
+  x: number;
+  y: number;
 }
 
 interface MapCanvasProps {
@@ -19,8 +28,14 @@ interface MapCanvasProps {
   /** Flow C: road segments the accident-injection toggle lets a user pick
    * from. Rendered as thin lines; onEdgeClick fires when one is clicked. */
   edges?: GraphEdge[];
-  selectedEdgeId?: string | null;
+  /** Accident road segments -- every one is drawn red/dashed. */
+  selectedEdgeIds?: string[];
   onEdgeClick?: (edge: GraphEdge) => void;
+  /** [lat, lon] road legs the accidents forced onto a detour, drawn as a
+   * yellow halo under the route lines. */
+  reroutedPaths?: [number, number][][];
+  /** Extra tooltip line per node id (e.g. which route visits it, and when). */
+  nodeNotes?: Record<string, string>;
 }
 
 const METERS_PER_DEG_LAT = 110_540;
@@ -36,9 +51,20 @@ function project(lat: number, lon: number, lat0: number, lon0: number): [number,
   return [(lon - lon0) * metersPerDegLon, -(lat - lat0) * METERS_PER_DEG_LAT];
 }
 
+const NO_IDS: string[] = [];
+const NO_PATHS: [number, number][][] = [];
+const NO_NOTES: Record<string, string> = {};
+
 export function MapCanvas({
-  nodes, routeLayers = [], heightPx = 420, edges = [], selectedEdgeId = null, onEdgeClick,
+  nodes, routeLayers = [], heightPx = 420, edges = [], selectedEdgeIds = NO_IDS, onEdgeClick,
+  reroutedPaths = NO_PATHS, nodeNotes = NO_NOTES,
 }: MapCanvasProps) {
+  const selectedSet = useMemo(() => new Set(selectedEdgeIds), [selectedEdgeIds]);
+  // deck.gl diffs updateTriggers shallowly, and two Sets always look equal
+  // (no own enumerable keys) -- so a Set trigger never refreshed the red
+  // accident styling. A string key changes whenever the selection does.
+  const selectionKey = selectedEdgeIds.join(',');
+  const [hovered, setHovered] = useState<HoveredNode | null>(null);
   const { positions, viewState, lat0, lon0 } = useMemo(() => {
     if (nodes.length === 0) {
       return {
@@ -69,14 +95,14 @@ export function MapCanvas({
       id: 'graph-edges',
       data: edges,
       getPath: edgePath,
-      getColor: (e: GraphEdge) => (e.edgeId === selectedEdgeId ? [229, 72, 77] : [46, 55, 66]),
-      getWidth: (e: GraphEdge) => (e.edgeId === selectedEdgeId ? 4 : 1.5),
-      getDashArray: (e: GraphEdge) => (e.edgeId === selectedEdgeId ? [6, 4] : [1, 0]),
+      getColor: (e: GraphEdge) => (selectedSet.has(e.edgeId) ? [229, 72, 77] : [46, 55, 66]),
+      getWidth: (e: GraphEdge) => (selectedSet.has(e.edgeId) ? 5 : 1.5),
+      getDashArray: (e: GraphEdge) => (selectedSet.has(e.edgeId) ? [6, 4] : [1, 0]),
       dashJustified: true,
       extensions: [new PathStyleExtension({ dash: true })],
       widthUnits: 'pixels',
       pickable: false,
-      updateTriggers: { getColor: selectedEdgeId, getWidth: selectedEdgeId, getDashArray: selectedEdgeId },
+      updateTriggers: { getColor: selectionKey, getWidth: selectionKey, getDashArray: selectionKey },
     });
     if (!onEdgeClick) return [visible];
     // A 1.5px line is very hard to actually click -- a wide, effectively
@@ -95,32 +121,46 @@ export function MapCanvas({
       onClick: (info: { object?: GraphEdge }) => info.object && onEdgeClick(info.object),
     });
     return [hitArea, visible];
-  }, [edges, lat0, lon0, selectedEdgeId, onEdgeClick]);
+  }, [edges, lat0, lon0, selectedSet, selectionKey, onEdgeClick]);
 
+  // The CSV's first row is the depot (node_ids[0], this codebase's convention),
+  // whatever its id string is.
   const nodeLayer = new ScatterplotLayer({
     id: 'nodes',
-    data: nodes.map((n) => ({ ...n, position: positions.get(n.id) ?? [0, 0] })),
+    data: nodes.map((n, i) => ({ ...n, isDepot: i === 0, position: positions.get(n.id) ?? [0, 0] })),
     getPosition: (d) => d.position,
-    getRadius: (d) => (d.id === 'depot' ? 10 : 7),
-    getFillColor: (d) => (d.id === 'depot' ? [237, 239, 242] : colorForNode(d.id)),
-    getLineColor: (d) => (d.id === 'depot' ? [237, 239, 242] : [18, 22, 28]),
+    getRadius: (d) => (d.isDepot ? 10 : 7),
+    getFillColor: (d) => (d.isDepot ? [237, 239, 242] : colorForNode(d.id)),
+    getLineColor: (d) => (d.isDepot ? [237, 239, 242] : [18, 22, 28]),
     lineWidthMinPixels: 1,
     stroked: true,
     radiusUnits: 'pixels',
-    pickable: false,
+    pickable: true,
+  });
+
+  const reroutedLayer = new PathLayer({
+    id: 'rerouted-halo',
+    data: reroutedPaths,
+    getPath: (leg: [number, number][]) => leg.map(([lat, lon]) => project(lat, lon, lat0, lon0)),
+    getColor: [242, 201, 76, 210],
+    getWidth: 9,
+    widthUnits: 'pixels',
+    capRounded: true,
+    jointRounded: true,
   });
 
   const routePathLayers = routeLayers.map(
     (layer, i) =>
       new PathLayer({
         id: `routes-${i}`,
-        data: layer.routes.map((r) => ({
+        data: layer.routes.map((r, j) => ({
+          color: layer.colors?.[j] ?? layer.color,
           path: r.geometry
             ? r.geometry.map(([lat, lon]) => project(lat, lon, lat0, lon0))
             : r.node_sequence.map((id) => positions.get(id) ?? [0, 0]),
         })),
         getPath: (d) => d.path,
-        getColor: layer.color,
+        getColor: (d) => d.color,
         getWidth: 3,
         widthUnits: 'pixels',
         getDashArray: layer.dashed ? [6, 4] : [1, 0],
@@ -133,6 +173,7 @@ export function MapCanvas({
     <div
       key={nodes.map((n) => n.id).join(',')}
       onDragStart={(e) => e.preventDefault()}
+      onMouseLeave={() => setHovered(null)}
       style={{
         position: 'relative',
         height: heightPx,
@@ -145,9 +186,36 @@ export function MapCanvas({
         views={new OrthographicView()}
         initialViewState={viewState}
         controller={true}
-        layers={[...edgeLayers, ...routePathLayers, nodeLayer]}
+        layers={[...edgeLayers, reroutedLayer, ...routePathLayers, nodeLayer]}
+        onHover={(info) => {
+          if (info.layer?.id === 'nodes' && info.object) {
+            const n = info.object as ScenarioNode & { isDepot: boolean };
+            setHovered({ node: n, isDepot: n.isDepot, x: info.x, y: info.y });
+          } else {
+            setHovered(null);
+          }
+        }}
         getCursor={({ isHovering }) => (onEdgeClick && isHovering ? 'pointer' : 'grab')}
       />
+      {hovered && (
+        <div
+          role="tooltip"
+          style={{
+            position: 'absolute', left: hovered.x + 14, top: hovered.y + 14, pointerEvents: 'none',
+            background: 'var(--bg-surface-raised)', color: 'var(--text-primary)',
+            border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)',
+            padding: 'var(--space-2) var(--space-3)', whiteSpace: 'pre', fontSize: 12, zIndex: 2,
+          }}
+        >
+          {/* React text, not HTML: node ids come straight from the user's CSV. */}
+          {[
+            hovered.isDepot ? `${hovered.node.id} (depot)` : `Node ${hovered.node.id}`,
+            `Demand: ${hovered.node.demand}`,
+            `Location: ${hovered.node.lat.toFixed(5)}, ${hovered.node.lon.toFixed(5)}`,
+            ...(nodeNotes[hovered.node.id] ? [nodeNotes[hovered.node.id]] : []),
+          ].join('\n')}
+        </div>
+      )}
       <span
         className="text-caption"
         style={{

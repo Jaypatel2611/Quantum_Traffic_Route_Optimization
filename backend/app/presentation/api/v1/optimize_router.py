@@ -1,5 +1,6 @@
 import dataclasses
 import uuid
+from collections import OrderedDict
 
 import numpy as np
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
@@ -19,16 +20,71 @@ from app.presentation.sse.convergence_stream import convergence_event_stream
 
 router = APIRouter()
 
-# job_id -> {"from_node_id": int, "to_node_id": int}, for jobs created with
-# an accident_edge -- a presentation-layer concern (Results' "re-route
-# triggered by accident" caption), not the orchestrator's, so it's kept
-# here rather than added to OptimizationOrchestrator's own state.
-_accident_edges: dict[str, dict] = {}
+@dataclasses.dataclass
+class _JobContext:
+    """What /result needs beyond the solvers' own output -- a presentation-layer
+    concern, so it lives here rather than in OptimizationOrchestrator's state.
+    city_id/nodes are None for raw-matrix /jobs (no road geometry for those)."""
+    node_ids: list[str]
+    distance_matrix: np.ndarray
+    time_matrix: np.ndarray
+    accident_edges: list[tuple[int, int]]
+    city_id: str | None = None
+    nodes: list[Node] | None = None
 
-# job_id -> (city_id, nodes), for jobs created via /jobs/from-nodes -- lets
-# /result attach road-following geometry. Raw-matrix /jobs have no city, so
-# they get none and the map falls back to straight lines.
-_job_scenarios: dict[str, tuple[str, list[Node]]] = {}
+
+_MAX_JOB_CONTEXTS = 50  # each holds two NxN matrices; oldest evicted first
+_job_contexts: "OrderedDict[str, _JobContext]" = OrderedDict()
+
+
+def _remember(job_id: str, context: _JobContext) -> None:
+    _job_contexts[job_id] = context
+    while len(_job_contexts) > _MAX_JOB_CONTEXTS:
+        _job_contexts.popitem(last=False)
+
+
+def _add_stops(routes: list[dict], context: _JobContext) -> None:
+    """Per-visit leg and cumulative distance/time, from the very matrices the
+    solvers optimized over, so the legs sum exactly to each route's totals."""
+    index = {node_id: i for i, node_id in enumerate(context.node_ids)}
+    for route in routes:
+        cumulative_distance = cumulative_time = 0.0
+        stops = []
+        previous = None
+        for node_id in route["node_sequence"]:
+            leg_distance = leg_time = 0.0
+            if previous is not None:
+                leg_distance = float(context.distance_matrix[index[previous]][index[node_id]])
+                leg_time = float(context.time_matrix[index[previous]][index[node_id]])
+            cumulative_distance += leg_distance
+            cumulative_time += leg_time
+            stops.append({
+                "node_id": node_id,
+                "leg_distance_m": leg_distance,
+                "leg_time_s": leg_time,
+                "cumulative_distance_m": cumulative_distance,
+                "cumulative_time_s": cumulative_time,
+            })
+            previous = node_id
+        route["stops"] = stops
+
+
+def _add_geometry(routes: list[dict], context: _JobContext, repository: GeospatialRepositoryPort) -> None:
+    sequences = [r["node_sequence"] for r in routes]
+    legs = repository.route_leg_geometries(
+        context.city_id, context.nodes, sequences, accident_edges=context.accident_edges
+    )
+    free_legs = (
+        repository.route_leg_geometries(context.city_id, context.nodes, sequences)
+        if context.accident_edges
+        else None
+    )
+    for i, route in enumerate(routes):
+        route["geometry"] = [point for leg in legs[i] for point in leg]
+        if free_legs is not None:
+            route["rerouted_geometry"] = [
+                leg for leg, free in zip(legs[i], free_legs[i]) if leg != free
+            ]
 
 
 @router.post("/jobs", response_model=CreateJobResponse)
@@ -56,6 +112,12 @@ async def create_job(
     if request.max_iterations is not None:
         job_payload["max_iterations"] = request.max_iterations
 
+    _remember(job_id, _JobContext(
+        node_ids=request.node_ids,
+        distance_matrix=job_payload["distance_matrix"],
+        time_matrix=job_payload["time_matrix"],
+        accident_edges=[],
+    ))
     background_tasks.add_task(
         orchestrator.run_comparison, job_id, job_payload, request.seed, request.time_budget_s
     )
@@ -77,14 +139,10 @@ async def create_job_from_nodes(
         Node(id=n.id, coordinates=GeographicCoordinates(lat=n.lat, lon=n.lon), demand=n.demand)
         for n in request.nodes
     ]
-    accident_edge = (
-        (request.accident_edge.from_node_id, request.accident_edge.to_node_id)
-        if request.accident_edge
-        else None
-    )
+    accident_edges = [(a.from_node_id, a.to_node_id) for a in request.accident_edges]
     try:
         distance_matrix, base_time_matrix = repository.build_matrices(
-            request.city_id, nodes, accident_edge=accident_edge
+            request.city_id, nodes, accident_edges=accident_edges
         )
     except UnknownCityError as exc:
         raise HTTPException(status_code=404, detail=f"unknown city_id: {request.city_id!r}") from exc
@@ -93,7 +151,6 @@ async def create_job_from_nodes(
     time_matrix = inject_stochastic_delay(base_time_matrix, rng, hour_of_day=request.hour_of_day)
 
     job_id = str(uuid.uuid4())
-    _job_scenarios[job_id] = (request.city_id, nodes)
     job_payload = {
         "time_matrix": time_matrix,
         "distance_matrix": distance_matrix,
@@ -107,11 +164,14 @@ async def create_job_from_nodes(
         job_payload["num_particles"] = request.num_particles
     if request.max_iterations is not None:
         job_payload["max_iterations"] = request.max_iterations
-    if request.accident_edge is not None:
-        _accident_edges[job_id] = {
-            "from_node_id": request.accident_edge.from_node_id,
-            "to_node_id": request.accident_edge.to_node_id,
-        }
+    _remember(job_id, _JobContext(
+        node_ids=[n.id for n in nodes],
+        distance_matrix=distance_matrix,
+        time_matrix=time_matrix,
+        accident_edges=accident_edges,
+        city_id=request.city_id,
+        nodes=nodes,
+    ))
 
     background_tasks.add_task(
         orchestrator.run_comparison, job_id, job_payload, request.seed, request.time_budget_s
@@ -151,24 +211,19 @@ async def get_job_result(
     ortools_payload["routes"] = _to_dicts(ortools_routes)
     qpso_payload["routes"] = _to_dicts(qpso_routes)
 
-    scenario = _job_scenarios.get(job_id)
-    if scenario is not None:
-        city_id, nodes = scenario
+    context = _job_contexts.get(job_id)
+    if context is not None:
         both = ortools_payload["routes"] + qpso_payload["routes"]
-        accident = _accident_edges.get(job_id)
-        geometries = repository.route_geometries(
-            city_id,
-            nodes,
-            [r["node_sequence"] for r in both],
-            accident_edge=(accident["from_node_id"], accident["to_node_id"]) if accident else None,
-        )
-        for route, geometry in zip(both, geometries):
-            route["geometry"] = geometry
+        _add_stops(both, context)
+        if context.city_id is not None:
+            _add_geometry(both, context, repository)
 
     return {
         "status": "done",
         "ortools": ortools_payload,
         "qpso": qpso_payload,
         "green_impact": compute_green_impact(ortools_routes, qpso_routes),
-        "accident_edge": _accident_edges.get(job_id),
+        "accident_edges": [
+            {"from_node_id": a, "to_node_id": b} for a, b in (context.accident_edges if context else [])
+        ],
     }

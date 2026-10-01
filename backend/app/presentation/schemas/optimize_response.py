@@ -25,12 +25,25 @@ class CreateJobResponse(BaseModel):
     job_id: str
 
 
+class StopResponse(BaseModel):
+    """One visit in a route: the leg that reached it and the running totals."""
+    node_id: str
+    leg_distance_m: float
+    leg_time_s: float
+    cumulative_distance_m: float
+    cumulative_time_s: float
+
+
 class RouteResponse(BaseModel):
     vehicle_id: str
     node_sequence: list[str]
     total_distance_m: float
     total_time_s: float
+    stops: list[StopResponse] | None = None  # one per node_sequence entry; absent for raw-matrix jobs
     geometry: list[list[float]] | None = None  # road-following [lat, lon] polyline
+    # Legs whose road path differs from the no-accident path -- what the
+    # accidents forced onto a detour. Empty/absent when no accidents.
+    rerouted_geometry: list[list[list[float]]] | None = None
 
 
 class AlgorithmResultResponse(BaseModel):
@@ -54,4 +67,4 @@ class JobResultResponse(BaseModel):
     ortools: AlgorithmResultResponse | None = None
     qpso: AlgorithmResultResponse | None = None
     green_impact: GreenImpactResponse | None = None
-    accident_edge: AccidentEdgeResponse | None = None
+    accident_edges: list[AccidentEdgeResponse] = []

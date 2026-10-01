@@ -15,6 +15,21 @@ describe('parseNodesCsv', () => {
     expect(() => parseNodesCsv('node_id,lat,lon\ndepot,12.9,77.6\n')).toThrow(/must have columns/i);
   });
 
+  it('rejects a duplicate node_id (routes and tables key on it)', () => {
+    const csv = ['node_id,lat,lon,demand', 'depot,12.9,77.6,0', 'n1,12.91,77.61,5', 'n1,12.92,77.62,6'].join('\n');
+    expect(() => parseNodesCsv(csv)).toThrow(/duplicate node_id: n1/i);
+  });
+
+  it('rejects a non-numeric lat/lon/demand cell', () => {
+    const csv = ['node_id,lat,lon,demand', 'depot,12.9,77.6,0', 'n1,abc,77.61,5'].join('\n');
+    expect(() => parseNodesCsv(csv)).toThrow(/non-numeric/i);
+  });
+
+  it('keeps every CSV row with its own demand, in file order', () => {
+    const csv = ['node_id,lat,lon,demand', 'depot,12.9,77.6,0', 'z9,12.91,77.61,7', 'a1,12.92,77.62,3'].join('\n');
+    expect(parseNodesCsv(csv).map((n) => [n.id, n.demand])).toEqual([['depot', 0], ['z9', 7], ['a1', 3]]);
+  });
+
   it('ignores trailing blank lines', () => {
     const csv = 'node_id,lat,lon,demand\ndepot,12.9716,77.6412,0\n\n';
     expect(parseNodesCsv(csv)).toHaveLength(1);

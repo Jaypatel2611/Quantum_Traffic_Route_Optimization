@@ -1,10 +1,14 @@
+from collections.abc import Sequence
 from pathlib import Path
 
 import numpy as np
 
 from app.domain.entities.node import Node
 from app.domain.exceptions import UnknownCityError
-from app.infrastructure.geospatial.distance_matrix_builder import build_distance_time_matrix, build_route_geometries
+from app.infrastructure.geospatial.distance_matrix_builder import (
+    build_distance_time_matrix,
+    build_route_leg_geometries,
+)
 from app.infrastructure.geospatial.osmnx_client import load_cached_graph
 
 # Data-driven so a second cache_path entry is the only change needed to add
@@ -65,26 +69,28 @@ class CachedGraphRepository:
             })
         return edges
 
-    def _load_with_accident(self, city_id: str, accident_edge: tuple[int, int] | None):
+    def _load_with_accidents(self, city_id: str, accident_edges: Sequence[tuple[int, int]]):
         graph = self._load(city_id)
-        if accident_edge is not None:
+        pairs = {frozenset(e) for e in accident_edges}  # a repeated segment is delayed once, not x5 per repeat
+        if pairs:
             graph = graph.copy()
-            pair = frozenset(accident_edge)
             for u, v, data in graph.edges(data=True):
-                if frozenset((u, v)) == pair:
+                if frozenset((u, v)) in pairs:
                     data["travel_time"] *= ACCIDENT_DELAY_MULTIPLIER
         return graph
 
     def build_matrices(
-        self, city_id: str, nodes: list[Node], accident_edge: tuple[int, int] | None = None
+        self, city_id: str, nodes: list[Node], accident_edges: Sequence[tuple[int, int]] = ()
     ) -> tuple[np.ndarray, np.ndarray]:
-        return build_distance_time_matrix(self._load_with_accident(city_id, accident_edge), nodes)
+        return build_distance_time_matrix(self._load_with_accidents(city_id, accident_edges), nodes)
 
-    def route_geometries(
+    def route_leg_geometries(
         self,
         city_id: str,
         nodes: list[Node],
         sequences: list[list[str]],
-        accident_edge: tuple[int, int] | None = None,
-    ) -> list[list[list[float]]]:
-        return build_route_geometries(self._load_with_accident(city_id, accident_edge), nodes, sequences)
+        accident_edges: Sequence[tuple[int, int]] = (),
+    ) -> list[list[list[list[float]]]]:
+        return build_route_leg_geometries(
+            self._load_with_accidents(city_id, accident_edges), nodes, sequences
+        )

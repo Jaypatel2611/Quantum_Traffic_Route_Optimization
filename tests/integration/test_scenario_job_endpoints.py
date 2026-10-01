@@ -116,9 +116,9 @@ def test_accident_edge_produces_a_slower_real_result_than_without_one():
     edges = client.get("/cities/indiranagar_bengaluru/edges").json()
     accident = next(e for e in edges if e["edge_id"] == edges[0]["edge_id"])
 
-    payload = {**_NODES_PAYLOAD, "accident_edge": {
+    payload = {**_NODES_PAYLOAD, "accident_edges": [{
         "from_node_id": accident["from_node_id"], "to_node_id": accident["to_node_id"],
-    }}
+    }]}
     response = client.post("/jobs/from-nodes", json=payload)
     assert response.status_code == 200
     job_id = response.json()["job_id"]
@@ -132,12 +132,12 @@ def test_accident_edge_produces_a_slower_real_result_than_without_one():
         time.sleep(0.5)
 
     assert result["status"] == "done", f"job never completed: {result}"
-    assert result["accident_edge"] == {
+    assert result["accident_edges"] == [{
         "from_node_id": accident["from_node_id"], "to_node_id": accident["to_node_id"],
-    }
+    }]
 
 
-def test_job_without_accident_edge_has_none_in_the_result():
+def test_job_without_accidents_has_an_empty_accident_list_in_the_result():
     response = client.post("/jobs/from-nodes", json=_NODES_PAYLOAD)
     job_id = response.json()["job_id"]
 
@@ -150,7 +150,7 @@ def test_job_without_accident_edge_has_none_in_the_result():
         time.sleep(0.5)
 
     assert result["status"] == "done"
-    assert result["accident_edge"] is None
+    assert result["accident_edges"] == []
 
 
 def test_from_nodes_job_builds_matrices_and_produces_a_comparable_result():
@@ -203,3 +203,60 @@ def test_num_particles_is_forwarded_to_the_qpso_solver():
 
     assert result["status"] == "done", f"job never completed: {result}"
     assert result["qpso"]["meta"]["num_particles"] == 7
+
+
+def _wait_done(job_id: str) -> dict:
+    deadline = time.monotonic() + 20.0
+    result = None
+    while time.monotonic() < deadline:
+        result = client.get(f"/jobs/{job_id}/result").json()
+        if result["status"] == "done":
+            break
+        time.sleep(0.5)
+    assert result["status"] == "done", f"job never completed: {result}"
+    return result
+
+
+def test_result_stops_match_the_route_order_and_sum_to_the_route_totals():
+    job_id = client.post("/jobs/from-nodes", json=_NODES_PAYLOAD).json()["job_id"]
+    result = _wait_done(job_id)
+
+    for algo in ("ortools", "qpso"):
+        for route in result[algo]["routes"]:
+            stops = route["stops"]
+            assert [s["node_id"] for s in stops] == route["node_sequence"]
+            assert stops[0]["leg_distance_m"] == 0 and stops[0]["cumulative_time_s"] == 0
+            assert sum(s["leg_distance_m"] for s in stops) == pytest.approx(route["total_distance_m"])
+            assert stops[-1]["cumulative_time_s"] == pytest.approx(route["total_time_s"])
+            assert route["rerouted_geometry"] is None  # no accidents, nothing rerouted
+
+
+def test_multiple_accidents_are_echoed_and_flag_rerouted_legs():
+    edges = client.get("/cities/indiranagar_bengaluru/edges").json()
+    first = client.post("/jobs/from-nodes", json=_NODES_PAYLOAD).json()["job_id"]
+    free = _wait_done(first)
+    # Block several real road segments that the no-accident routes actually drive.
+    by_coords = {
+        frozenset([(round(e["from_lat"], 6), round(e["from_lon"], 6)), (round(e["to_lat"], 6), round(e["to_lon"], 6))]): e
+        for e in edges
+    }
+    geometry = free["ortools"]["routes"][0]["geometry"]
+    blocked = []
+    for a, b in zip(geometry, geometry[1:]):
+        edge = by_coords.get(frozenset([tuple(a), tuple(b)]))
+        if edge and edge not in blocked:
+            blocked.append(edge)
+        if len(blocked) == 6:
+            break
+    assert len(blocked) >= 2
+
+    payload = {**_NODES_PAYLOAD, "accident_edges": [
+        {"from_node_id": e["from_node_id"], "to_node_id": e["to_node_id"]} for e in blocked
+    ]}
+    result = _wait_done(client.post("/jobs/from-nodes", json=payload).json()["job_id"])
+
+    assert result["accident_edges"] == payload["accident_edges"]
+    for algo in ("ortools", "qpso"):
+        for route in result[algo]["routes"]:
+            assert route["rerouted_geometry"] is not None
+    assert any(route["rerouted_geometry"] for route in result["ortools"]["routes"])

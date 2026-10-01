@@ -3,6 +3,7 @@ import { useAppState } from '../state/AppState';
 import { StatCard } from '../components/StatCard';
 import { Modal } from '../components/Modal';
 import { InfoIcon } from '../components/InfoIcon';
+import { BackButton } from '../components/BackButton';
 
 /** Design Brief 6.4 captions "vs. unoptimized nearest-neighbor baseline" --
  * this codebase never built a separate naive/nearest-neighbor solver
@@ -15,7 +16,8 @@ export function GreenImpactScreen() {
 
   if (!result || result.status !== 'done') {
     return (
-      <div style={{ padding: 'var(--space-6)' }}>
+      <div style={{ padding: 'var(--space-6)', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+        <BackButton label="Back" />
         <h1 className="text-display">Green Impact Dashboard</h1>
         <p className="text-body">No completed run to report on yet.</p>
       </div>
@@ -26,6 +28,7 @@ export function GreenImpactScreen() {
 
   return (
     <div style={{ padding: 'var(--space-6)', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+      <BackButton label="Back to Results" />
       <h1 className="text-display">Green Impact Dashboard</h1>
 
       <div style={{ display: 'flex', gap: 'var(--space-4)', flexWrap: 'wrap' }}>

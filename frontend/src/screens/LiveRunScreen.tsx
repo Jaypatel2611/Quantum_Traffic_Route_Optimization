@@ -6,6 +6,7 @@ import { AlgorithmStatusCard } from '../components/AlgorithmStatusCard';
 import { FairnessFooter } from '../components/FairnessFooter';
 import { InfoIcon } from '../components/InfoIcon';
 import { HowItWorksModal } from './HowItWorksModal';
+import { BackButton } from '../components/BackButton';
 
 export function LiveRunScreen() {
   const { jobId, scenario, convergenceHistory, streamComplete, streamError, howItWorksOpen } = useAppState();
@@ -31,6 +32,7 @@ export function LiveRunScreen() {
 
   return (
     <div style={{ padding: 'var(--space-6)', display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
+      <BackButton label="Back to Setup" disabled={!streamComplete && !streamError} />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <h1 className="text-display">Live Optimization Run</h1>

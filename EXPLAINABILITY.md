@@ -304,3 +304,38 @@ Real, honest result: the polish clearly helps at 60-node scale (more routes to r
 
 **Verification:** new unit tests `test_route_geometry_follows_graph_junctions_not_a_straight_line` (route passes through the only connecting junction, starts/ends at the stops) and `test_route_geometry_detours_around_accident_edge` (blocking the fast road flips the path to the alternative); full suite 101 passed; `tsc -b` clean.
 
+---
+
+## Post-Phase-8 — Node Inspection, Multi-Accident Injection, Back Navigation
+
+**What triggered this:** a UX pass over the Setup -> Live Run -> Results workflow: every CSV node should be inspectable, the Results page should show the optimizer's actual route stop by stop, more than one accident should be injectable at once, and going Back should never lose work.
+
+**Inspected first (nothing about routing was changed):** the solvers (`or_tools_baseline.py`, `qpso_solver.py`) return `node_sequence` per vehicle and optimize over the shared distance/time matrices; demand only enters as a capacity constraint, never as an ordering key. The new UI renders `node_sequence` exactly as returned and never sorts by demand, id or distance (a unit test uses a deliberately unsorted route to guard this).
+
+**Node inspection**
+- `MapCanvas` nodes are now pickable. Hover shows node id, demand and lat/lon (and on Results, which vehicle visits it and at which stop for each solver). The tooltip uses `text`, not `html`, because node ids come straight from the user's CSV.
+- The depot is now "row 0 of the CSV" on the map (it was `id === 'depot'`), matching what the solver treats as the depot (`depot_index = 0`).
+- Setup has a collapsible `NodeTable` of every parsed row. `parseNodesCsv` now rejects duplicate `node_id`s and non-numeric lat/lon/demand cells, since routes, tooltips and tables key on `node_id`.
+
+**Actual route on Results**
+- `GET /jobs/{id}/result` adds `stops` per route: for each visit, the leg distance/time and cumulative distance/time, read from the very matrices the solvers optimized over (`_JobContext`, bounded to the last 50 jobs because each holds two N x N matrices). Legs therefore sum exactly to each route's reported totals; an integration test asserts this.
+- New `RouteBreakdown` per solver and vehicle: `Depot -> n2 -> n3 -> n1 -> Depot`, then a table with CSV demand, leg/cumulative km and minutes, running load, and route totals against vehicle capacity.
+
+**Multiple accidents**
+- Request field `accident_edge` became `accident_edges` (list, max 50); the result echoes `accident_edges`. `CachedGraphRepository._load_with_accidents` multiplies each distinct segment's `travel_time` x5 once (a repeated segment is not x25) on a copy of the cached graph. The matrices, the solvers and the drawn geometry all see the same blocked roads, so rerouting uses the existing optimization path unchanged.
+- Setup: clicking road segments in accident mode adds accidents (duplicates ignored); each is listed with its own Remove button, plus Clear all.
+- Results: each route leg is drawn along the fastest path with accidents applied. `rerouted_geometry` marks the legs whose path differs from the no-accident path, drawn as a yellow halo under the route lines. A `MapLegend` distinguishes Depot, delivery nodes, accident roads (red dashed) and rerouted paths.
+
+**Navigation / state**
+- Setup form state (city, CSV nodes, capacity, vehicles, accidents) moved from component state into `AppState` (`setup` + `updateSetup`), so it survives leaving the screen.
+- `goBack`: Live Run -> Setup, Results -> Setup, Green Impact -> Results. Live Run is a transient step (re-entering it would replay the SSE stream into an already-complete history), so Results does not go back to it. Result data is kept, so Green Impact -> Results does not refetch.
+
+**Verification:** backend 104 tests passing (new: multi-accident repository test, stops-sum-to-totals and multi-accident-reroute integration tests against the real solvers); frontend 20 vitest tests passing (CSV validation, nodes+demand display, add/remove/clear accidents, Back preserving state, route order and numbers in `RouteBreakdown`); `tsc -b` clean.
+
+**Limitations**
+- Not verified in a real browser this session (the backend was stopped by a low-memory event and was not restarted); hover tooltips and the map overlay are covered by types and component-level tests only, with the map stubbed out in jsdom.
+- Going Back from Live Run while a job is running drops that run's result (the stream subscription ends); start it again from Setup.
+- The `accident_edge` -> `accident_edges` API change is breaking for any external caller of `/jobs/from-nodes`.
+- A rerouted leg is flagged only if its road path changes; the solver can also reorder stops because of accidents, which shows up in the route chain, not the halo.
+- Accidents are road segments (existing system), not nodes; an accident on a segment with no alternative road changes time but not the drawn path.
+

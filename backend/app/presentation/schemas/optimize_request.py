@@ -75,7 +75,7 @@ class CreateJobFromNodesRequest(ForbidExtraModel):
     hour_of_day: float = 8.0
     num_particles: int | None = Field(default=None, gt=0, le=200)
     max_iterations: int | None = Field(default=None, gt=0, le=5000)
-    accident_edge: AccidentEdgeSchema | None = None
+    accident_edges: list[AccidentEdgeSchema] = Field(default_factory=list, max_length=50)
 
     @model_validator(mode="after")
     def _depot_index_in_range(self) -> "CreateJobFromNodesRequest":

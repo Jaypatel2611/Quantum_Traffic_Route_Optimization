@@ -1,23 +1,12 @@
 import { useEffect, useState } from 'react';
 import { createJob, fetchCities, fetchEdges } from '../api/client';
-import type { AccidentEdge, City, GraphEdge, ScenarioNode } from '../api/types';
-import { useAppActions } from '../state/AppState';
+import type { City, GraphEdge, ScenarioNode } from '../api/types';
+import { useAppActions, useAppState } from '../state/AppState';
 import { MapCanvas } from '../components/LazyMapCanvas';
+import { MapLegend } from '../components/MapLegend';
+import { NodeTable } from '../components/NodeTable';
 
 const CSV_TEMPLATE = 'node_id,lat,lon,demand\ndepot,12.9716,77.6412,0\nn1,12.9750,77.6440,30\n';
-
-/** PRD Section 16: no screen is ever actually empty in the demo. Pre-seeds
- * the same 5-node Indiranagar scenario used throughout Phase 5-7's own
- * verification (docs/demo_scenarios/indiranagar_5.csv) -- a rehearsed,
- * always-feasible starting point a judge sees immediately, not a blank
- * upload prompt. Uploading a CSV replaces it. */
-const DEFAULT_SCENARIO_NODES: ScenarioNode[] = [
-  { id: 'depot', lat: 12.9716, lon: 77.6412, demand: 0 },
-  { id: 'n1', lat: 12.975, lon: 77.644, demand: 30 },
-  { id: 'n2', lat: 12.969, lon: 77.638, demand: 40 },
-  { id: 'n3', lat: 12.976, lon: 77.639, demand: 25 },
-  { id: 'n4', lat: 12.967, lon: 77.643, demand: 35 },
-];
 
 /** Must match the backend's own `f"{min(u,v)}_{max(u,v)}"` convention
  * (cached_graph_repository.py's list_edges) exactly, order-independent --
@@ -43,7 +32,7 @@ export function parseNodesCsv(text: string): ScenarioNode[] {
   if (idx.id === -1 || idx.lat === -1 || idx.lon === -1 || idx.demand === -1) {
     throw new Error('CSV must have columns: node_id, lat, lon, demand');
   }
-  return rows
+  const nodes = rows
     .filter((row) => row.trim().length > 0)
     .map((row) => {
       const cells = row.split(',');
@@ -54,31 +43,40 @@ export function parseNodesCsv(text: string): ScenarioNode[] {
         demand: Number(cells[idx.demand]),
       };
     });
+  // Routes, tooltips and the result tables all key on node_id.
+  const seen = new Set<string>();
+  for (const node of nodes) {
+    if (seen.has(node.id)) throw new Error(`CSV has a duplicate node_id: ${node.id}`);
+    seen.add(node.id);
+    if (![node.lat, node.lon, node.demand].every(Number.isFinite)) {
+      throw new Error(`CSV row for node ${node.id} has a non-numeric lat/lon/demand`);
+    }
+  }
+  return nodes;
 }
 
 export function SetupScreen() {
-  const { startJob } = useAppActions();
+  const { setup } = useAppState();
+  const { startJob, updateSetup } = useAppActions();
+  const { cityId, nodes, usingDefault, vehicleCapacity, numVehicles, accidentEdges } = setup;
+
   const [cities, setCities] = useState<City[]>([]);
-  const [cityId, setCityId] = useState('');
-  const [nodes, setNodes] = useState<ScenarioNode[]>(DEFAULT_SCENARIO_NODES);
-  const [usingDefault, setUsingDefault] = useState(true);
   const [csvError, setCsvError] = useState<string | null>(null);
-  const [vehicleCapacity, setVehicleCapacity] = useState(100);
-  const [numVehicles, setNumVehicles] = useState(2);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [accidentMode, setAccidentMode] = useState(false);
   const [edges, setEdges] = useState<GraphEdge[]>([]);
   const [edgesError, setEdgesError] = useState<string | null>(null);
-  const [accidentEdge, setAccidentEdge] = useState<AccidentEdge | null>(null);
 
   useEffect(() => {
     fetchCities()
       .then((list) => {
         setCities(list);
-        if (list.length > 0) setCityId(list[0].id);
+        // Keep the city the user already picked when coming Back to Setup.
+        if (list.length > 0 && !list.some((c) => c.id === cityId)) updateSetup({ cityId: list[0].id });
       })
       .catch(() => setCsvError('Could not reach backend for the city list.'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Real road network is always visible as map context (not just during
@@ -90,12 +88,12 @@ export function SetupScreen() {
       .catch(() => setEdgesError('Could not load road segments for this city.'));
   }, [cityId]);
 
-  function handleToggleAccidentMode() {
-    setAccidentMode((prev) => !prev);
-  }
-
   function handleEdgeClick(edge: GraphEdge) {
-    setAccidentEdge({ fromNodeId: edge.fromNodeId, toNodeId: edge.toNodeId });
+    const already = accidentEdges.some(
+      (a) => edgeIdFor(a.fromNodeId, a.toNodeId) === edge.edgeId,
+    );
+    if (already) return;
+    updateSetup({ accidentEdges: [...accidentEdges, { fromNodeId: edge.fromNodeId, toNodeId: edge.toNodeId }] });
   }
 
   const canRun = cityId !== '' && nodes.length >= 2 && !submitting;
@@ -105,16 +103,15 @@ export function SetupScreen() {
   async function handleFile(file: File) {
     setCsvError(null);
     if (file.size > MAX_CSV_BYTES) {
-      setNodes([]);
+      updateSetup({ nodes: [] });
       setCsvError('CSV exceeds 5 MB limit.');
       return;
     }
     try {
       const text = await file.text();
-      setNodes(parseNodesCsv(text));
-      setUsingDefault(false);
+      updateSetup({ nodes: parseNodesCsv(text), usingDefault: false });
     } catch (err) {
-      setNodes([]);
+      updateSetup({ nodes: [] });
       setCsvError(err instanceof Error ? err.message : 'Could not parse CSV.');
     }
   }
@@ -129,7 +126,7 @@ export function SetupScreen() {
       numVehicles,
       seed: 42,
       timeBudgetS: 8.0,
-      accidentEdge,
+      accidentEdges,
     };
     try {
       const jobId = await createJob(scenario);
@@ -156,7 +153,7 @@ export function SetupScreen() {
           City
           <select
             value={cityId}
-            onChange={(e) => setCityId(e.target.value)}
+            onChange={(e) => updateSetup({ cityId: e.target.value })}
             style={selectStyle}
           >
             {cities.length === 0 && <option value="">Loading…</option>}
@@ -190,13 +187,14 @@ export function SetupScreen() {
                 : `${nodes.length} nodes loaded (depot: ${nodes[0]?.id})`}
             </span>
           )}
+          <NodeTable nodes={nodes} />
         </div>
 
         <label className="text-body" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
           Vehicle capacity
           <input
             type="number" min={1} value={vehicleCapacity}
-            onChange={(e) => setVehicleCapacity(Number(e.target.value))}
+            onChange={(e) => updateSetup({ vehicleCapacity: Number(e.target.value) })}
             style={selectStyle}
           />
         </label>
@@ -205,41 +203,62 @@ export function SetupScreen() {
           Number of vehicles
           <input
             type="number" min={1} value={numVehicles}
-            onChange={(e) => setNumVehicles(Number(e.target.value))}
+            onChange={(e) => updateSetup({ numVehicles: Number(e.target.value) })}
             style={selectStyle}
           />
         </label>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
           <button
-            onClick={handleToggleAccidentMode}
+            onClick={() => setAccidentMode((prev) => !prev)}
             style={{
               ...toggleButtonStyle,
               borderColor: accidentMode ? 'var(--status-error)' : 'var(--border-subtle)',
               color: accidentMode ? 'var(--status-error)' : 'var(--text-secondary)',
             }}
           >
-            {accidentMode ? 'Click a road segment on the map →' : 'Inject Accident'}
+            {accidentMode ? 'Click road segments on the map → (click here when done)' : 'Inject Accidents'}
           </button>
           {edgesError && <span className="text-caption" style={{ color: 'var(--status-error)' }}>{edgesError}</span>}
-          {accidentEdge && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-              <span
-                className="text-caption"
-                style={{
-                  background: 'var(--status-error)', color: 'var(--bg-canvas)',
-                  borderRadius: 'var(--radius-sm)', padding: '2px 8px', fontWeight: 600,
-                }}
-              >
-                ×5 delay
-              </span>
-              <button
-                onClick={() => setAccidentEdge(null)}
-                className="text-caption"
-                style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', textDecoration: 'underline' }}
-              >
-                Clear
-              </button>
+          {accidentEdges.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }} data-testid="accident-list">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span className="text-caption">{accidentEdges.length} active accident{accidentEdges.length > 1 ? 's' : ''}</span>
+                <button
+                  onClick={() => updateSetup({ accidentEdges: [] })}
+                  className="text-caption"
+                  style={linkButtonStyle}
+                >
+                  Clear all
+                </button>
+              </div>
+              {accidentEdges.map((a, i) => {
+                const id = edgeIdFor(a.fromNodeId, a.toNodeId);
+                return (
+                  <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                    <span
+                      className="text-caption"
+                      style={{
+                        background: 'var(--status-error)', color: 'var(--bg-canvas)',
+                        borderRadius: 'var(--radius-sm)', padding: '2px 8px', fontWeight: 600,
+                      }}
+                    >
+                      ×5 delay
+                    </span>
+                    <span className="text-caption" style={{ flex: 1 }}>Accident {i + 1} · road {id}</span>
+                    <button
+                      onClick={() =>
+                        updateSetup({ accidentEdges: accidentEdges.filter((_, j) => j !== i) })
+                      }
+                      aria-label={`Remove accident ${i + 1}`}
+                      className="text-caption"
+                      style={linkButtonStyle}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -268,14 +287,18 @@ export function SetupScreen() {
       </div>
       </div>
 
-      <div style={{ width: '70%', padding: 'var(--space-6)' }}>
+      <div style={{ width: '70%', padding: 'var(--space-6)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+        <MapLegend showAccidents={accidentEdges.length > 0 || accidentMode} />
         <MapCanvas
           nodes={nodes}
           heightPx={560}
           edges={edges}
-          selectedEdgeId={accidentEdge ? edgeIdFor(accidentEdge.fromNodeId, accidentEdge.toNodeId) : null}
+          selectedEdgeIds={accidentEdges.map((a) => edgeIdFor(a.fromNodeId, a.toNodeId))}
           onEdgeClick={accidentMode ? handleEdgeClick : undefined}
         />
+        <span className="text-caption" style={{ color: 'var(--text-secondary)' }}>
+          Hover a node for its id, demand and location.
+        </span>
       </div>
     </div>
   );
@@ -291,4 +314,8 @@ const toggleButtonStyle = {
   background: 'var(--bg-surface)', color: 'var(--text-secondary)',
   border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)',
   padding: 'var(--space-2)',
+};
+
+const linkButtonStyle = {
+  background: 'none', border: 'none', color: 'var(--text-secondary)', textDecoration: 'underline',
 };

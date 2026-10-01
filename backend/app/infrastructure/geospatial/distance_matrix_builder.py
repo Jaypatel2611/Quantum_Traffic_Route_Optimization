@@ -42,10 +42,11 @@ def build_distance_time_matrix(graph: nx.MultiDiGraph, nodes: list[Node]) -> tup
     return dist, time
 
 
-def build_route_geometries(
+def build_route_leg_geometries(
     graph: nx.MultiDiGraph, nodes: list[Node], sequences: list[list[str]]
-) -> list[list[list[float]]]:
-    """Road-following [lat, lon] polyline for each route's node-id sequence.
+) -> list[list[list[list[float]]]]:
+    """Per route, one road-following [lat, lon] polyline per leg (consecutive
+    stop pair), in visit order. Road-following [lat, lon] polyline for each route's node-id sequence.
     Each leg is the fastest (travel_time-weighted) path, i.e. the road the
     reported time came from. Pass the accident-modified graph and a blocked
     road's x5 time makes the line visibly detour around it. (The distance
@@ -65,10 +66,14 @@ def build_route_geometries(
             legs[(a, b)] = points
         return legs[(a, b)]
 
-    geometries = []
-    for sequence in sequences:
-        polyline: list[list[float]] = []
-        for a, b in zip(sequence, sequence[1:]):
-            polyline += leg(index[a], index[b])
-        geometries.append(polyline)
-    return geometries
+    return [[leg(index[a], index[b]) for a, b in zip(sequence, sequence[1:])] for sequence in sequences]
+
+
+def build_route_geometries(
+    graph: nx.MultiDiGraph, nodes: list[Node], sequences: list[list[str]]
+) -> list[list[list[float]]]:
+    """build_route_leg_geometries with each route's legs joined into one polyline."""
+    return [
+        [point for leg in legs for point in leg]
+        for legs in build_route_leg_geometries(graph, nodes, sequences)
+    ]

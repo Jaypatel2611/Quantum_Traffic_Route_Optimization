@@ -48,12 +48,10 @@ export async function createJob(scenario: ScenarioConfig): Promise<string> {
       num_vehicles: scenario.numVehicles,
       seed: scenario.seed,
       time_budget_s: scenario.timeBudgetS,
-      ...(scenario.accidentEdge && {
-        accident_edge: {
-          from_node_id: scenario.accidentEdge.fromNodeId,
-          to_node_id: scenario.accidentEdge.toNodeId,
-        },
-      }),
+      accident_edges: scenario.accidentEdges.map((a) => ({
+        from_node_id: a.fromNodeId,
+        to_node_id: a.toNodeId,
+      })),
     }),
   });
   if (!response.ok) {

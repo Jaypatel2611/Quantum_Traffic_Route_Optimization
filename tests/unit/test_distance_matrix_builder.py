@@ -9,6 +9,7 @@ from app.domain.entities.node import Node
 from app.domain.value_objects.geographic_coordinates import GeographicCoordinates
 from app.infrastructure.geospatial.distance_matrix_builder import (
     build_accident_impacts,
+    FastestPaths,
     build_distance_time_matrix,
     build_route_geometries,
 )
@@ -129,3 +130,64 @@ def test_a_second_accident_that_blocks_the_detour_turns_a_reroute_into_driven_th
     # Alone, 2-3 is avoidable via 1-4-3; with 1-4 also blocked there is no cheaper way around.
     on, _ = _impacts(_two_route_graph(alt_time=100), [(2, 3), (1, 4)])
     assert on["status"] == "driven_through"
+
+
+def _fast_but_long_graph():
+    """1->3: via 2 is fast (120 s) but long (2000 m); via 4 is slow (300 s) but short (1200 m)."""
+    g = nx.MultiDiGraph()
+    for nid, y, x in [(1, 12.90, 77.60), (2, 12.91, 77.61), (3, 12.92, 77.62), (4, 12.93, 77.60)]:
+        g.add_node(nid, y=y, x=x)
+    g.add_edge(1, 2, length=1000, travel_time=60)
+    g.add_edge(2, 3, length=1000, travel_time=60)
+    g.add_edge(1, 4, length=600, travel_time=150)
+    g.add_edge(4, 3, length=600, travel_time=150)
+    g.add_edge(3, 1, length=5000, travel_time=900)  # the real graph is strongly connected
+    g.graph["crs"] = "epsg:4326"
+    return g
+
+
+def _n1_n3():
+    return [
+        Node(id="n1", coordinates=GeographicCoordinates(lat=12.90, lon=77.60)),
+        Node(id="n3", coordinates=GeographicCoordinates(lat=12.92, lon=77.62)),
+    ]
+
+
+def test_distance_is_the_length_of_the_fastest_path_not_the_shortest_one():
+    dist, time = build_distance_time_matrix(_fast_but_long_graph(), _n1_n3())
+    assert time[0, 1] == 120
+    assert dist[0, 1] == 2000  # the road actually driven, not the 1200 m shortcut nobody takes
+
+
+def test_an_accident_that_forces_a_detour_changes_the_distance_too():
+    g = _fast_but_long_graph()
+    g[1][2][0]["travel_time"] *= 5  # accident on 1-2 -> 300 + 60 beats nothing; via 4 is 300 total
+    dist, time = build_distance_time_matrix(g, _n1_n3())
+    assert time[0, 1] == 300
+    assert dist[0, 1] == 1200
+
+
+def test_matrix_distance_equals_the_length_along_the_drawn_path():
+    g = _fast_but_long_graph()
+    nodes = _n1_n3()
+    dist, _ = build_distance_time_matrix(g, nodes)
+    path = FastestPaths(g).path(1, 3)
+    drawn_length = sum(g[u][v][0]["length"] for u, v in zip(path, path[1:]))
+    assert path == [1, 2, 3]
+    assert dist[0, 1] == drawn_length
+
+
+def test_parallel_edges_use_the_fastest_ones_length():
+    g = nx.MultiDiGraph()
+    for nid, y, x in [(1, 12.90, 77.60), (2, 12.91, 77.61)]:
+        g.add_node(nid, y=y, x=x)
+    g.add_edge(1, 2, length=900, travel_time=40)  # slower road, shorter ...
+    g.add_edge(1, 2, length=1500, travel_time=30)  # ... faster road, longer: the one driven
+    g.add_edge(2, 1, length=1500, travel_time=30)
+    g.graph["crs"] = "epsg:4326"
+    nodes = [
+        Node(id="a", coordinates=GeographicCoordinates(lat=12.90, lon=77.60)),
+        Node(id="b", coordinates=GeographicCoordinates(lat=12.91, lon=77.61)),
+    ]
+    dist, time = build_distance_time_matrix(g, nodes)
+    assert time[0, 1] == 30 and dist[0, 1] == 1500

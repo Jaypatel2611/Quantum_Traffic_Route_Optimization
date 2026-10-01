@@ -299,7 +299,7 @@ Real, honest result: the polish clearly helps at 60-node scale (more routes to r
 
 **Honest limits:**
 - Accident detours are now drawn: legs use the accident-modified graph's fastest path, so a blocked road (x5 time) is routed around where an alternative exists. The injected random stochastic delay (log-normal, per matrix cell) still cannot be drawn.
-- Distance and time come from two different shortest paths (by length vs by time). The reported km is the shortest-by-length path's length; the drawn line is the fastest path, so its true length can be slightly above the km figure. Unifying them (distance = length of the fastest path) would change the benchmarked numbers and was not done.
+- ~~Distance and time come from two different shortest paths, so the drawn line can be slightly longer than the reported km~~ Fixed: see "One road for distance, time and the drawn line" below.
 - Polylines join graph junctions with straight segments (the grey network is drawn the same way), so very curved roads look slightly angular. OSM edge `geometry` curves are not used.
 - ~~Where OR-Tools and QPSO share a road, the dashed orange line sits over the solid blue one.~~ Fixed: the QPSO layer is offset one line width sideways (deck.gl `PathStyleExtension` offset mode), so shared roads show two parallel lines. The offset is relative to each path's own direction, so it always moves QPSO away from OR-Tools' centerline whichever way each travels; the two are adjacent rather than overlapping, which reads as a thicker band on shared roads.
 - Geometry is computed on each `/result` call and the per-job scenario dict is in memory, like the accident-edge dict. Fine for one demo process, not for multi-instance deployment.
@@ -360,4 +360,18 @@ When accidents are injected, each solver is also run on the accident-free matric
 | QPSO (fixed) | yes | 60/60 | 4.92 | 47.0 |
 
 The earlier "QPSO beats OR-Tools by 7.6% CO2 at 60 nodes" came from skipping customers, not from better routing. With a valid tour QPSO is about 15% worse than OR-Tools on this scenario. The 5-node (tie) and 15-node (-7.1%) figures were not re-measured here and may also have been affected. Anything quoting a QPSO win (PPT, demo script, Green Impact framing) needs re-checking against the fixed solver.
+
+### One road for distance, time and the drawn line
+`build_distance_time_matrix` used to compute distance on the shortest-by-length path and time on the fastest path, which can be different roads; the map drew the fastest one, so the drawn line could be longer than the km shown. Now one definition, `FastestPaths` (a cached Dijkstra tree per source, weighted by `travel_time`), feeds the matrices, the drawn legs and the accident analysis: time is the fastest path's time and distance is that same path's length (the fastest parallel edge's length where roads are doubled). Consequences: the reported km always equals the length along the drawn line (unit test); an accident that forces a detour now also lengthens the distance (before, distance ignored accidents entirely); distances are never shorter than before and a little longer where the fastest road is not the shortest. QPSO's fitness weights distance and time equally, so absolute numbers shift versus every earlier benchmark.
+
+**Re-measured with the fixed (valid-tour) QPSO and the unified matrices** (seed 42, 15 s budget, 8 am delay, real cached-graph nodes, both solvers visit every customer exactly once):
+
+| Scenario | Vehicles x capacity | OR-Tools CO2 | QPSO CO2 | QPSO vs OR-Tools |
+|---|---|---|---|---|
+| 5 nodes | 2 x 100 | 0.38 | 0.38 | tie (0.0%) |
+| 15 nodes | 5 x 100 | 2.26 | 2.33 | 3.3% worse |
+| 30 nodes | 6 x 150 | 2.75 | 4.01 | 45.6% worse |
+| 60 nodes | 8 x 150 | 4.31 | 5.01 | 16.3% worse |
+
+QPSO ties on the smallest case and is behind OR-Tools everywhere else, most at 30 nodes. This replaces the retracted 60-node `+7.6%`. Any slide or script claiming a QPSO win over OR-Tools needs rewording (for example: "matches the classical baseline on small instances; the swarm's value here is the explainable search, not beating OR-Tools").
 

@@ -106,7 +106,9 @@ def test_list_edges_returns_real_edges_for_the_cached_city():
     assert len(edges) > 0
     assert set(edges[0].keys()) == {
         "edge_id", "from_node_id", "to_node_id", "from_lat", "from_lon", "to_lat", "to_lon",
+        "travel_time_s",
     }
+    assert all(e["travel_time_s"] > 0 for e in edges)
 
 
 def test_accident_edge_produces_a_slower_real_result_than_without_one():

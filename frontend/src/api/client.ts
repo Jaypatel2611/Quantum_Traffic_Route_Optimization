@@ -22,6 +22,7 @@ interface EdgeWire {
   from_lon: number;
   to_lat: number;
   to_lon: number;
+  travel_time_s: number;
 }
 
 export async function fetchEdges(cityId: string): Promise<GraphEdge[]> {
@@ -34,6 +35,7 @@ export async function fetchEdges(cityId: string): Promise<GraphEdge[]> {
     fromLon: e.from_lon,
     toLat: e.to_lat,
     toLon: e.to_lon,
+    travelTimeS: e.travel_time_s,
   }));
 }
 

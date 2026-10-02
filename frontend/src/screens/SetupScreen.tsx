@@ -10,6 +10,11 @@ import { MapCanvas } from '../components/LazyMapCanvas';
 import { MapLegend } from '../components/MapLegend';
 import { NodeTable } from '../components/NodeTable';
 
+// Backend's ACCIDENT_DELAY_MULTIPLIER; the added time is (multiplier - 1) x the road's normal crossing time.
+const ACCIDENT_DELAY_MULTIPLIER = 5;
+// Below this, a detour almost never beats driving through (no alternative road is that cheap).
+const SHORT_ROAD_ADDED_S = 60;
+
 const CSV_TEMPLATE = 'node_id,lat,lon,demand\ndepot,12.9716,77.6412,0\nn1,12.9750,77.6440,30\n';
 
 export function SetupScreen() {
@@ -191,6 +196,8 @@ export function SetupScreen() {
               </div>
               {accidentEdges.map((a, i) => {
                 const id = edgeIdFor(a.fromNodeId, a.toNodeId);
+                const edge = edges.find((e) => e.edgeId === id);
+                const addedS = edge ? (ACCIDENT_DELAY_MULTIPLIER - 1) * edge.travelTimeS : null;
                 return (
                   <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
                     <span
@@ -200,9 +207,12 @@ export function SetupScreen() {
                         borderRadius: 'var(--radius-sm)', padding: '2px 8px', fontWeight: 600,
                       }}
                     >
-                      ×5 delay
+                      ×{ACCIDENT_DELAY_MULTIPLIER} delay
                     </span>
-                    <span className="text-caption" style={{ flex: 1 }}>Accident {i + 1} · road {id}</span>
+                    <span className="text-caption" style={{ flex: 1 }}>
+                      Accident {i + 1} · road {id}
+                      {addedS !== null && <span data-testid="accident-added-time"> · adds ~{Math.round(addedS)} s</span>}
+                    </span>
                     <button
                       onClick={() =>
                         updateSetup({ accidentEdges: accidentEdges.filter((_, j) => j !== i) })
@@ -216,6 +226,15 @@ export function SetupScreen() {
                   </div>
                 );
               })}
+              {accidentEdges.some((a) => {
+                const edge = edges.find((e) => e.edgeId === edgeIdFor(a.fromNodeId, a.toNodeId));
+                return edge && (ACCIDENT_DELAY_MULTIPLIER - 1) * edge.travelTimeS < SHORT_ROAD_ADDED_S;
+              }) && (
+                <span className="text-caption" data-testid="short-road-hint" style={{ color: 'var(--text-secondary)' }}>
+                  A short road adds little time, so the solvers will likely drive through it instead of
+                  rerouting. Pick a longer road to see a detour.
+                </span>
+              )}
             </div>
           )}
         </div>

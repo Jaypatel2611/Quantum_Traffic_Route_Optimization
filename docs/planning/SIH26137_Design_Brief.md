@@ -1,6 +1,6 @@
 # SIH26137 — Design Brief
 ## Quantum-Inspired Traffic Route Optimization — UI/UX Blueprint (pre-code)
-**Source of truth:** `SIH26137_Implementation_PRD.md` (features/architecture authoritative; this brief does not add scope, only form)
+**Source of truth:** `SIH26137_Implementation_PRD.md` (same folder; features/architecture authoritative; this brief does not add scope, only form)
 **Hard constraint:** every screen must be legible to a judge in under 2 minutes, on a laptop, in a 36-hour finale build window.
 
 ---

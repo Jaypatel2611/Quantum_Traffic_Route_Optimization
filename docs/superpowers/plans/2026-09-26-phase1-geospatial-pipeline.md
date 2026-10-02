@@ -8,7 +8,7 @@
 
 **Tech Stack:** OSMnx, NetworkX, NumPy (seeded `Generator`), pytest + Hypothesis (property-based tests).
 
-**Spec:** `../../../SIH26137_Implementation_PRD.md` (Sections 7 seeding, 8 offline caching, 10 geospatial pipeline, 14 testing, 17 payload/bounding-box limits), `../../../svrp_benchmark_doc.md` (log-normal delay parameters).
+**Spec:** `../../planning/SIH26137_Implementation_PRD.md` (Sections 7 seeding, 8 offline caching, 10 geospatial pipeline, 14 testing, 17 payload/bounding-box limits), `../../../svrp_benchmark_doc.md` (log-normal delay parameters).
 
 ## Global Constraints
 

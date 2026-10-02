@@ -8,7 +8,7 @@
 
 **Tech Stack:** `asyncio`, `concurrent.futures.ProcessPoolExecutor`, `multiprocessing.Manager`, FastAPI `StreamingResponse`/`text/event-stream`, `httpx` (SSE-capable test client already in `requirements.txt`).
 
-**Spec:** `../../../SIH26137_Implementation_PRD.md` (Section 7 architecture/async/SSE sketches, Section 14 concurrency testing table, Section 15 error/reconnect failure states).
+**Spec:** `../../planning/SIH26137_Implementation_PRD.md` (Section 7 architecture/async/SSE sketches, Section 14 concurrency testing table, Section 15 error/reconnect failure states).
 
 ## Global Constraints
 

@@ -1,6 +1,6 @@
 # SIH26137 — Egreen Quanta: Build Explainability Log
 
-Source of truth: `SIH26137_Implementation_PRD.md`, `SIH26137_Design_Brief.md`.
+Source of truth: `docs/planning/SIH26137_Implementation_PRD.md`, `docs/planning/SIH26137_Design_Brief.md`.
 Updated after every phase and every noticeable change.
 
 ## Phase 0 — Scaffolding

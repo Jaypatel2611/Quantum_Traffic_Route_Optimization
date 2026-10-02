@@ -12,7 +12,7 @@ React 19 + TypeScript + Vite (existing scaffold at `frontend/`). Deck.GL for Web
 
 ## Users
 
-Three personas, per `SIH26137_Implementation_PRD.md` Section 5:
+Three personas, per `docs/planning/SIH26137_Implementation_PRD.md` Section 5:
 - **Enterprise Fleet Manager** — uploads a delivery-node CSV, configures vehicle capacity, runs the optimizer, reads the results/green-impact comparison.
 - **Municipal Traffic Analyst** — injects a simulated road-accident/delay and observes how both solvers re-route around it.
 - **Technical Evaluator (SIH judge)** — watches the live convergence chart, inspects the QPSO math and fairness/reproducibility footer (seed, time budget, solver versions), reads the benchmark numbers. Judges have **under 2 minutes per screen** — this is a hard legibility constraint, not a nice-to-have.
@@ -44,8 +44,8 @@ No existing brand name/logo beyond "SIH26137 — Quantum-Inspired Traffic Route 
 
 ## Evidence on Hand
 
-- `SIH26137_Design_Brief.md` — full token system (color/type/spacing/radius/shadow), 5-screen inventory, 3 user flows, per-screen layout hierarchy, component list.
-- `SIH26137_Implementation_PRD.md` — architecture, algorithm math, API sketch, tech stack decision, testing strategy, roadmap.
+- `docs/planning/SIH26137_Design_Brief.md` — full token system (color/type/spacing/radius/shadow), 5-screen inventory, 3 user flows, per-screen layout hierarchy, component list.
+- `docs/planning/SIH26137_Implementation_PRD.md` — architecture, algorithm math, API sketch, tech stack decision, testing strategy, roadmap.
 - `EXPLAINABILITY.md` — running log of what's built, verified, and why, through Phase 5 (backend: geospatial pipeline, OR-Tools baseline, QPSO solver, COPERT emissions, async execution + SSE streaming — all complete and tested).
 - No screenshots, logos, or other binary brand assets on hand.
 

@@ -1,4 +1,5 @@
-import { AppStateProvider, useAppState } from './state/AppState';
+import { AppStateProvider } from './state/AppState';
+import { useAppState } from './state/appStateHooks';
 import { SetupScreen } from './screens/SetupScreen';
 import { LiveRunScreen } from './screens/LiveRunScreen';
 import { ResultsScreen } from './screens/ResultsScreen';

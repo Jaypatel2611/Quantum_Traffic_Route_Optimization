@@ -1,36 +1,9 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
-import type { JobResult, ScenarioConfig, SetupDraft } from '../api/types';
+import { useMemo, useState, type ReactNode } from 'react';
 import { INITIAL_SETUP } from './defaultScenario';
+import { ActionsContext, StateContext, type AppActions, type AppState, type Screen } from './appStateHooks';
 
-export type Screen = 'setup' | 'live-run' | 'results' | 'green-impact';
-
-interface AppState {
-  screen: Screen;
-  setup: SetupDraft;
-  scenario: ScenarioConfig | null;
-  jobId: string | null;
-  convergenceHistory: number[];
-  streamError: string | null;
-  streamComplete: boolean;
-  result: JobResult | null;
-  howItWorksOpen: boolean;
-  /** Results' vehicle filter: routeKey() values, or null for every vehicle. */
-  visibleRoutes: string[] | null;
-}
-
-interface AppActions {
-  goTo: (screen: Screen) => void;
-  /** Back one workflow step. State (setup draft, result) is never cleared by going back. */
-  goBack: () => void;
-  updateSetup: (patch: Partial<SetupDraft>) => void;
-  startJob: (scenario: ScenarioConfig, jobId: string) => void;
-  appendProgress: (gbest: number) => void;
-  markStreamComplete: () => void;
-  markStreamError: (message: string) => void;
-  setResult: (result: JobResult) => void;
-  setHowItWorksOpen: (open: boolean) => void;
-  setVisibleRoutes: (visible: string[] | null) => void;
-}
+// Re-exported so existing `from './AppState'` imports keep working.
+export { useAppActions, useAppState, type Screen } from './appStateHooks';
 
 /** Live Run is a transient step (re-entering it would replay the SSE stream
  * into an already-complete history), so Results goes back to Setup. */
@@ -40,9 +13,6 @@ const BACK_TARGET: Record<Screen, Screen> = {
   results: 'setup',
   'green-impact': 'results',
 };
-
-const StateContext = createContext<AppState | null>(null);
-const ActionsContext = createContext<AppActions | null>(null);
 
 const INITIAL_STATE: AppState = {
   screen: 'setup',
@@ -93,16 +63,4 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       <ActionsContext.Provider value={actions}>{children}</ActionsContext.Provider>
     </StateContext.Provider>
   );
-}
-
-export function useAppState(): AppState {
-  const ctx = useContext(StateContext);
-  if (!ctx) throw new Error('useAppState must be used within AppStateProvider');
-  return ctx;
-}
-
-export function useAppActions(): AppActions {
-  const ctx = useContext(ActionsContext);
-  if (!ctx) throw new Error('useAppActions must be used within AppStateProvider');
-  return ctx;
 }

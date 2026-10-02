@@ -1,4 +1,4 @@
-import { useAppActions } from '../state/AppState';
+import { useAppActions } from '../state/appStateHooks';
 
 interface BackButtonProps {
   label: string;

@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { fetchJobResult, subscribeToConvergence } from '../api/client';
-import { useAppActions, useAppState } from '../state/AppState';
+import { useAppActions, useAppState } from '../state/appStateHooks';
 import { ConvergenceChart } from '../components/LazyConvergenceChart';
 import { AlgorithmStatusCard } from '../components/AlgorithmStatusCard';
 import { FairnessFooter } from '../components/FairnessFooter';

@@ -2,7 +2,7 @@ import { DeckGL } from '@deck.gl/react';
 import { OrthographicView } from '@deck.gl/core';
 import { PathLayer, ScatterplotLayer } from '@deck.gl/layers';
 import { PathStyleExtension } from '@deck.gl/extensions';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { GraphEdge, Route, ScenarioNode } from '../api/types';
 import { colorForNode } from '../utils/nodeColor';
 
@@ -83,10 +83,13 @@ export function MapCanvas({
     return { positions, viewState: { target: [0, 0, 0] as [number, number, number], zoom }, lat0, lon0 };
   }, [nodes, heightPx]);
 
-  const edgePath = (e: GraphEdge): [number, number][] => [
-    project(e.fromLat, e.fromLon, lat0, lon0),
-    project(e.toLat, e.toLon, lat0, lon0),
-  ];
+  const edgePath = useCallback(
+    (e: GraphEdge): [number, number][] => [
+      project(e.fromLat, e.fromLon, lat0, lon0),
+      project(e.toLat, e.toLon, lat0, lon0),
+    ],
+    [lat0, lon0]
+  );
 
   const edgeLayers = useMemo(() => {
     if (edges.length === 0) return [];
@@ -133,7 +136,7 @@ export function MapCanvas({
       onClick: (info: { object?: GraphEdge }) => info.object && onEdgeClick(info.object),
     });
     return [hitArea, base, accidents];
-  }, [edges, lat0, lon0, selectedSet, onEdgeClick]);
+  }, [edges, edgePath, selectedSet, onEdgeClick]);
 
   // The CSV's first row is the depot (node_ids[0], this codebase's convention),
   // whatever its id string is.

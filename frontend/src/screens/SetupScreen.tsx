@@ -59,6 +59,9 @@ export function SetupScreen() {
   }
 
   const canRun = cityId !== '' && nodes.length >= 2 && !submitting;
+  const totalDemand = nodes.reduce((sum, n) => sum + n.demand, 0);
+  const fleetCapacity = vehicleCapacity * numVehicles;
+  const overCapacity = nodes.length > 0 && totalDemand > fleetCapacity;
 
   const MAX_CSV_BYTES = 5 * 1024 * 1024; // PRD Section 17
 
@@ -169,6 +172,13 @@ export function SetupScreen() {
             style={selectStyle}
           />
         </label>
+
+        {overCapacity && (
+          <span className="text-caption" data-testid="capacity-warning" style={{ color: 'var(--status-error)' }}>
+            Total demand {totalDemand} exceeds fleet capacity {fleetCapacity} ({vehicleCapacity} × {numVehicles}).
+            Raise vehicle capacity or the number of vehicles, or the job will be rejected.
+          </span>
+        )}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
           <button

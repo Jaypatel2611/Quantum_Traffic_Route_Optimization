@@ -39,6 +39,18 @@ export async function fetchEdges(cityId: string): Promise<GraphEdge[]> {
   }));
 }
 
+// FastAPI sends `detail` as a string (HTTPException) or a list of {msg} (422 validation).
+async function jobErrorMessage(response: Response): Promise<string> {
+  const base = `job creation failed: ${response.status}`;
+  try {
+    const { detail } = (await response.json()) as { detail?: string | { msg: string }[] };
+    const text = Array.isArray(detail) ? detail.map((d) => d.msg).join('; ') : detail;
+    return text ? `${base} — ${text.replace(/^Value error, /, '')}` : base;
+  } catch {
+    return base;
+  }
+}
+
 export async function createJob(scenario: ScenarioConfig): Promise<string> {
   const response = await fetch(`${BASE_URL}/jobs/from-nodes`, {
     method: 'POST',
@@ -57,7 +69,7 @@ export async function createJob(scenario: ScenarioConfig): Promise<string> {
     }),
   });
   if (!response.ok) {
-    throw new Error(`job creation failed: ${response.status}`);
+    throw new Error(await jobErrorMessage(response));
   }
   const data = (await response.json()) as { job_id: string };
   return data.job_id;

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { subscribeToConvergence } from './client';
+import { createJob, subscribeToConvergence } from './client';
 
 class FakeEventSource {
   static CONNECTING = 0;
@@ -80,5 +80,24 @@ describe('subscribeToConvergence', () => {
     fakeSource.readyState = FakeEventSource.CLOSED;
     fakeSource.emit('error', {});
     expect(onError).toHaveBeenCalledWith('connection lost');
+  });
+});
+
+describe('createJob errors', () => {
+  const scenario = {
+    cityId: 'c', nodes: [], vehicleCapacity: 1, numVehicles: 1, seed: 1, timeBudgetS: 1, accidentEdges: [],
+  };
+
+  it('shows the backend validation message, minus the pydantic prefix', async () => {
+    const body = { detail: [{ msg: 'Value error, total demand 313 exceeds fleet capacity 36' }] };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status: 422 })));
+    await expect(createJob(scenario)).rejects.toThrow(
+      'job creation failed: 422 — total demand 313 exceeds fleet capacity 36',
+    );
+  });
+
+  it('falls back to the bare status when the body is not JSON', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('boom', { status: 500 })));
+    await expect(createJob(scenario)).rejects.toThrow('job creation failed: 500');
   });
 });

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { fetchEdges, fetchJobResult } from '../api/client';
 import type { AlgorithmResult, GraphEdge } from '../api/types';
-import { useAppActions, useAppState } from '../state/AppState';
+import { useAppActions, useAppState } from '../state/appStateHooks';
 import { MapCanvas } from '../components/LazyMapCanvas';
 import { RouteComparisonTable } from '../components/RouteComparisonTable';
 import { RouteLegend } from '../components/RouteLegend';
@@ -12,7 +12,7 @@ import { VehicleSelector } from '../components/VehicleSelector';
 import { AccidentImpactPanel } from '../components/AccidentImpactPanel';
 import { RouteChangePanel } from '../components/RouteChangePanel';
 import { routeKey, vehicleColor, type Solver } from '../utils/vehicleColor';
-import { edgeIdFor } from './SetupScreen';
+import { edgeIdFor } from '../utils/scenarioCsv';
 
 /** "OR-Tools: v0 stop 2 · QPSO: v1 stop 1" per node, for the map tooltip --
  * read straight off the solvers' returned sequences. */

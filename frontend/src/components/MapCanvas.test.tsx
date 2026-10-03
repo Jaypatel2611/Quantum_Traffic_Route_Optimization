@@ -21,8 +21,8 @@ const nodes: ScenarioNode[] = [
   { id: 'n1', lat: 12.975, lon: 77.644, demand: 30 },
 ];
 const edges: GraphEdge[] = [
-  { edgeId: '1_2', fromNodeId: 1, toNodeId: 2, fromLat: 12.97, fromLon: 77.64, toLat: 12.971, toLon: 77.641 },
-  { edgeId: '3_4', fromNodeId: 3, toNodeId: 4, fromLat: 12.972, fromLon: 77.642, toLat: 12.973, toLon: 77.643 },
+  { edgeId: '1_2', fromNodeId: 1, toNodeId: 2, fromLat: 12.97, fromLon: 77.64, toLat: 12.971, toLon: 77.641, travelTimeS: 5 },
+  { edgeId: '3_4', fromNodeId: 3, toNodeId: 4, fromLat: 12.972, fromLon: 77.642, toLat: 12.973, toLon: 77.643, travelTimeS: 5 },
 ];
 
 const layer = (id: string) => deckProps.layers.find((l) => l.id === id)!;

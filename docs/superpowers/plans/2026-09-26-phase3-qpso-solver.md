@@ -8,7 +8,7 @@
 
 **Tech Stack:** NumPy (`numpy.random.Generator`, seeded — no Qiskit/Cirq/quantum-simulator dependency anywhere, PRD Section 9), Hypothesis (property-based tests).
 
-**Spec:** `../../../SIH26137_Implementation_PRD.md` (Sections 7 seeding/time-budget, 9 QPSO math, 9.1 QPSO-vs-QAOA justification, 11 multi-objective normalization, 12 dynamic penalty, 14 testing/success metrics, 15 stagnation).
+**Spec:** `../../planning/SIH26137_Implementation_PRD.md` (Sections 7 seeding/time-budget, 9 QPSO math, 9.1 QPSO-vs-QAOA justification, 11 multi-objective normalization, 12 dynamic penalty, 14 testing/success metrics, 15 stagnation).
 
 ## Global Constraints
 

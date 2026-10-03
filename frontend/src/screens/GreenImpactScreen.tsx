@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useAppState } from '../state/AppState';
+import { useAppState } from '../state/appStateHooks';
 import { StatCard } from '../components/StatCard';
 import { Modal } from '../components/Modal';
 import { InfoIcon } from '../components/InfoIcon';

@@ -98,6 +98,8 @@ export interface GraphEdge {
   fromLon: number;
   toLat: number;
   toLon: number;
+  /** Normal crossing time; an accident adds (multiplier - 1) x this. */
+  travelTimeS: number;
 }
 
 export interface ScenarioConfig {

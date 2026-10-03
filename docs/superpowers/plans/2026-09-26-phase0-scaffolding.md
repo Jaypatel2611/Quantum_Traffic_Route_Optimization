@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.11, FastAPI, pytest, httpx (backend); Node LTS, Vite, React, TypeScript, Vitest (frontend); Docker Compose.
 
-**Spec:** `../../../SIH26137_Implementation_PRD.md` (Sections 7, 8, 18, 21) and `../../../SIH26137_Design_Brief.md`
+**Spec:** `../../planning/SIH26137_Implementation_PRD.md` (Sections 7, 8, 18, 21) and `../../planning/SIH26137_Design_Brief.md`
 
 ## Global Constraints
 

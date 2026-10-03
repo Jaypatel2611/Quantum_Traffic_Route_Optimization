@@ -73,4 +73,4 @@ Demo delivery sets are in `docs/demo_scenarios/` (5, 15, 30 and 60 nodes). Uploa
 
 - [EXPLAINABILITY.md](EXPLAINABILITY.md): what was built in each phase, bugs found, and benchmark results
 - [PRODUCT.md](PRODUCT.md) and [DESIGN.md](DESIGN.md): product goals and design decisions
-- [DEMO_VIDEO_SCRIPT.md](DEMO_VIDEO_SCRIPT.md): demo walkthrough script
+- [Demo video](https://www.youtube.com/watch?v=ya-_0dS80G8): a walkthrough of the app

@@ -8,7 +8,7 @@
 
 **Tech Stack:** Pure Python/NumPy, no new dependencies.
 
-**Spec:** `../../../SIH26137_Implementation_PRD.md` (Section 13 COPERT integration, Section 14 testing table, Section 6 `Vehicle.fuel_type`).
+**Spec:** `../../planning/SIH26137_Implementation_PRD.md` (Section 13 COPERT integration, Section 14 testing table, Section 6 `Vehicle.fuel_type`).
 
 ## Global Constraints
 

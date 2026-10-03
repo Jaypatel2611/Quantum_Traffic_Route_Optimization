@@ -67,6 +67,11 @@ class CachedGraphRepository:
                 "from_lon": graph.nodes[u]["x"],
                 "to_lat": graph.nodes[v]["y"],
                 "to_lon": graph.nodes[v]["x"],
+                "travel_time_s": min(
+                    data["travel_time"]
+                    for a, b in ((u, v), (v, u))
+                    for data in (graph.get_edge_data(a, b) or {}).values()
+                ),
             })
         return edges
 

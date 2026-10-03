@@ -14,6 +14,7 @@ class EdgeResponse(BaseModel):
     from_lon: float
     to_lat: float
     to_lon: float
+    travel_time_s: float  # normal crossing time; an accident adds (multiplier - 1) x this
 
 
 class AccidentEdgeResponse(BaseModel):

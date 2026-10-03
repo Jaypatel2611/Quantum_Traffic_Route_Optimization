@@ -8,7 +8,7 @@
 
 **Tech Stack:** `ortools.constraint_solver.pywrapcp`, `ortools.constraint_solver.routing_enums_pb2`.
 
-**Spec:** `../../../SIH26137_Implementation_PRD.md` (Sections 7 seeding/fairness, 9.2 OR-Tools config, 12 precision-recall trade-off context, 21 build order).
+**Spec:** `../../planning/SIH26137_Implementation_PRD.md` (Sections 7 seeding/fairness, 9.2 OR-Tools config, 12 precision-recall trade-off context, 21 build order).
 
 ## Global Constraints
 
